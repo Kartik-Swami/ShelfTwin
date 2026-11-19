@@ -1,0 +1,2327 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>ShelfTwin</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="ShelfTwin prototype: how much shelf life each batch really has left, and what to do about it this morning. All data is simulated.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Sans+Devanagari:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* ShelfTwin prototype. Layout concept: a cold-chain instrument panel. Hairlines,
+   one cool accent for "real shelf life", one warm hue for heat and loss, status
+   colours reserved for actions. Range bars are the signature mark. */
+:root {
+  --bg: #F3F6F7; --surface: #FFFFFF; --surface-2: #EBF0F3;
+  --ink: #10212B; --ink-2: #44565F; --ink-3: #5B6D77;
+  --line: #D5DEE2; --line-2: #B9C6CD;
+  --accent: #0675BD; --accent-text: #0675BD; --accent-ink: #045C96; --accent-soft: #E1EFF8; --on-accent: #FFFFFF;
+  --heat: #E06A2C; --heat-soft: #FBE9DE;
+  --ok: #1C7C54; --ok-ink: #146446; --ok-soft: #E1F2E9;
+  --warn: #9A5A06; --warn-ink: #8A5105; --warn-soft: #FBEFD9;
+  --crit: #B3261E; --crit-ink: #A3201A; --crit-soft: #FBE3E1; --crit-solid: #B3261E; --on-solid: #FFFFFF;
+  --shadow: 0 1px 2px rgba(16, 33, 43, .06);
+  --font: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'IBM Plex Sans Devanagari', system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans Devanagari', 'DejaVu Sans', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+  --tabs-h: 50px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#0B151B;--surface:#13222B;--surface-2:#1A2D38; --ink:#E6EEF2;--ink-2:#A9BAC3;--ink-3:#8497A1;--line:#263742;--line-2:#3A4D59; --accent:#2F8FD6;--accent-text:#5FB2EA;--accent-ink:#8FCDF3;--accent-soft:#14354A;--on-accent:#04141F; --heat:#D95926;--heat-soft:#3B2418; --ok:#3FAE7C;--ok-ink:#5BCB95;--ok-soft:#153A2B; --warn:#D49A32;--warn-ink:#E8B04F;--warn-soft:#3A2D12; --crit:#E5604F;--crit-ink:#F28B79;--crit-soft:#3D1E1B;--crit-solid:#C23A2F;--on-solid:#FFFFFF; --shadow:none;color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#0B151B;--surface:#13222B;--surface-2:#1A2D38; --ink:#E6EEF2;--ink-2:#A9BAC3;--ink-3:#8497A1;--line:#263742;--line-2:#3A4D59; --accent:#2F8FD6;--accent-text:#5FB2EA;--accent-ink:#8FCDF3;--accent-soft:#14354A;--on-accent:#04141F; --heat:#D95926;--heat-soft:#3B2418; --ok:#3FAE7C;--ok-ink:#5BCB95;--ok-soft:#153A2B; --warn:#D49A32;--warn-ink:#E8B04F;--warn-soft:#3A2D12; --crit:#E5604F;--crit-ink:#F28B79;--crit-soft:#3D1E1B;--crit-solid:#C23A2F;--on-solid:#FFFFFF; --shadow:none;color-scheme:dark; }
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 60; }
+h1, h2, h3, h4, p, ul, ol, dl, dd, figure { margin: 0; }
+h1, h2, h3 { text-wrap: balance; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent-text); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.mono { font-family: var(--mono); font-size: .92em; letter-spacing: -.01em; }
+.muted { color: var(--ink-2); }
+.small { font-size: 12.5px; }
+.ic { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+.wrap { max-width: 1120px; margin-inline: auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* header */
+.top { padding-block: 18px 6px; display: flex; flex-direction: column; gap: 14px; }
+.top-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font: 600 18px/1 var(--font); letter-spacing: -.01em; }
+.brand svg { width: 30px; height: 30px; flex: none; }
+.pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font: 500 12px/1 var(--font); background: var(--surface); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line); }
+.pill-sim { background: var(--warn-soft); color: var(--warn-ink); box-shadow: none; font-weight: 600; }
+.hero h1 { font: 600 clamp(24px, 4.6vw, 36px)/1.12 var(--font); letter-spacing: -.02em; max-width: 22ch; }
+.hero p { margin-top: 10px; max-width: 62ch; color: var(--ink-2); font-size: 15px; }
+
+/* tabs */
+.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 50; background: var(--bg); border-bottom: 1px solid var(--line); margin-top: 10px; }
+.tabs-in { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-block: 7px; height: var(--tabs-h); }
+.tabs-in::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; min-height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-2); font: 500 14px/1 var(--font); cursor: pointer; white-space: nowrap; }
+.tab:hover { background: var(--surface-2); }
+.tab[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+
+.view { padding-block: 18px 40px; display: flex; flex-direction: column; gap: 16px; }
+.sec-h { font: 600 16px/1.3 var(--font); display: flex; align-items: baseline; gap: 8px; }
+.count { font: 500 12px/1 var(--font); color: var(--ink-3); }
+.lead { color: var(--ink-2); max-width: 68ch; }
+
+/* buttons, inputs */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid transparent; font: 600 14px/1 var(--font); cursor: pointer; background: var(--surface-2); color: var(--ink); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.06); }
+.btn-ghost { background: transparent; border-color: var(--line-2); }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-2); }
+.btn-quiet { background: transparent; color: var(--accent-text); padding: 0 8px; }
+.btn-quiet:hover { background: var(--accent-soft); }
+.btn-sm { min-height: 34px; padding: 0 12px; font-size: 13px; }
+select, textarea, input[type="text"] { min-height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); }
+select { padding-right: 8px; max-width: 100%; }
+textarea { padding: 10px; width: 100%; line-height: 1.45; resize: vertical; min-height: 84px; }
+.bar { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field > span, .lbl { font: 600 11.5px/1.2 var(--font); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 8px; overflow: hidden; background: var(--surface); max-width: 100%; flex-wrap: wrap; }
+.seg button { min-height: 38px; padding: 0 12px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--ink-2); font: 500 13px/1 var(--font); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; background: transparent; margin: 0; }
+input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--line-2); }
+input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--line-2); }
+input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+input[type=range]:disabled { opacity: .4; }
+input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+
+/* chips, tags, badges */
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: 999px; font: 600 11.5px/1 var(--font); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; background: var(--surface-2); color: var(--ink-2); flex: none; }
+.chip-move { background: var(--accent-soft); color: var(--accent-ink); }
+.chip-markdown { background: var(--warn-soft); color: var(--warn-ink); }
+.chip-donate { background: var(--ok-soft); color: var(--ok-ink); }
+.chip-reorder { box-shadow: inset 0 0 0 1px var(--line-2); }
+.chip-hold { background: var(--crit-soft); color: var(--crit-ink); }
+.chip-remove { background: var(--crit-solid); color: var(--on-solid); }
+.chip-ok { background: transparent; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line); }
+.tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font: 600 11px/1.4 var(--font); background: var(--heat-soft); color: var(--warn-ink); }
+.tag-new { background: var(--accent-soft); color: var(--accent-ink); }
+.badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font: 600 11px/1 var(--font); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.b-real { background: var(--ok-soft); color: var(--ok-ink); }
+.b-sim { background: var(--surface-2); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+.b-illus { background: var(--warn-soft); color: var(--warn-ink); }
+.b-design { background: var(--accent-soft); color: var(--accent-ink); }
+.b-plan { color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line-2); }
+
+/* summary + legend */
+.sum { display: flex; flex-wrap: wrap; gap: 8px 28px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat b { font: 600 22px/1.15 var(--font); letter-spacing: -.01em; }
+.stat span { font-size: 12.5px; color: var(--ink-2); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; font-size: 12.5px; color: var(--ink-2); }
+.legend i, .chart-legend i { display: inline-block; vertical-align: middle; margin-right: 6px; }
+.lg-band { width: 22px; height: 8px; border-radius: 4px; background: var(--accent); }
+.lg-tick { width: 2px; height: 14px; background: var(--ink); }
+.lg-mark { width: 9px; height: 9px; background: var(--ink); transform: rotate(45deg); }
+.lg-core { width: 18px; height: 0; border-top: 2px solid var(--accent); }
+.lg-air { width: 18px; height: 0; border-top: 2px solid var(--heat); }
+.lg-ref { width: 18px; height: 0; border-top: 1.5px dashed var(--ink-3); }
+.lg-env { width: 18px; height: 9px; background: var(--accent); opacity: .18; border-radius: 2px; }
+.try { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.try summary { cursor: pointer; padding: 12px 16px; font-weight: 600; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.try summary::-webkit-details-marker { display: none; }
+.try summary::after { content: "+"; font-size: 18px; color: var(--ink-3); }
+.try[open] summary::after { content: "\2212"; }
+.try ol { margin: 0; padding: 0 16px 14px 16px; list-style: none; display: grid; gap: 8px; }
+.try li { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; color: var(--ink-2); }
+.try li span { flex: 1 1 280px; min-width: 0; }
+
+/* morning list */
+.list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 430px), 1fr)); gap: 12px; align-items: start; }
+.row { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; box-shadow: var(--shadow); }
+.row.a-hold, .row.a-remove { border-color: var(--crit); }
+.row.is-done { background: var(--surface-2); box-shadow: none; }
+.row.is-new { outline: 2px solid var(--accent); outline-offset: 1px; }
+.row-head { display: flex; gap: 10px; align-items: flex-start; }
+.row-title { min-width: 0; flex: 1; }
+.row-title h3 { font: 600 15px/1.3 var(--font); overflow-wrap: anywhere; }
+.meta { color: var(--ink-3); font-size: 12.5px; margin-top: 2px; overflow-wrap: anywhere; }
+.nums { display: flex; justify-content: space-between; gap: 4px 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+.nums b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.row-do { font-size: 14px; line-height: 1.45; }
+.row-stake { font-size: 12.5px; color: var(--ink-2); }
+.row-note { font-size: 12.5px; color: var(--warn-ink); background: var(--warn-soft); border-radius: 6px; padding: 6px 8px; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.done-note { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ok-ink); font-weight: 500; }
+.why { margin: 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); display: grid; gap: 4px; }
+.reasons { display: flex; flex-direction: column; gap: 8px; }
+.reasons .lbl { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--ink); }
+.row.compact { padding: 10px 14px; gap: 6px; box-shadow: none; }
+.row.compact .row-head { align-items: center; }
+
+/* range bar */
+.rbar { position: relative; height: 22px; direction: ltr; }
+.rbar-track { position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.rbar-band { position: absolute; top: 6px; height: 10px; border-radius: 5px; background: var(--accent); min-width: 6px; }
+.rbar-tick { position: absolute; top: 1px; right: 0; width: 2px; height: 20px; border-radius: 1px; background: var(--ink); }
+.rbar-mark { position: absolute; top: 6px; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg); background: var(--ink); box-shadow: 0 0 0 2px var(--surface); }
+.rbar.big { height: 30px; }
+.rbar.big .rbar-track { top: 11px; height: 8px; border-radius: 4px; }
+.rbar.big .rbar-band { top: 8px; height: 14px; border-radius: 7px; }
+.rbar.big .rbar-tick { top: 2px; height: 26px; }
+.rbar.big .rbar-mark { top: 10px; width: 12px; height: 12px; margin-left: -6px; }
+.rbar-ends { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ink-3); margin-top: 2px; direction: ltr; }
+
+/* twin */
+.twin-grid { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card > h3 { font: 600 15px/1.3 var(--font); }
+.readout .eyebrow { font: 600 11.5px/1 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.readout .big { font: 600 clamp(32px, 7vw, 46px)/1.05 var(--font); letter-spacing: -.02em; }
+.readout .big small { font: 500 .42em/1 var(--font); letter-spacing: 0; color: var(--ink-2); margin-left: 4px; }
+.conf { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.conf b { color: var(--ink); }
+.live-wrap { display: none; position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--tabs-h) + 4px); height: 0; z-index: 20; }
+.live-bar { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 12px; box-shadow: 0 2px 10px rgba(16, 33, 43, .12); opacity: 0; pointer-events: none; transform: translateY(-6px); transition: opacity .15s, transform .15s; }
+.live-bar.show { opacity: 1; pointer-events: auto; transform: none; }
+.live-bar .lb-num { font: 600 16px/1.2 var(--font); font-variant-numeric: tabular-nums; }
+.live-bar .lb-sub { font-size: 12px; color: var(--ink-3); }
+.live-bar .lb-main { min-width: 0; flex: 1; }
+.ctl { display: flex; flex-direction: column; gap: 2px; padding-block: 8px; border-top: 1px solid var(--line); }
+.ctl:first-of-type { border-top: 0; padding-top: 0; }
+.ctl-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ctl-top label, .ctl-top .ctl-name { font-weight: 600; font-size: 14px; }
+.ctl-top output { font: 600 14px/1 var(--font); font-variant-numeric: tabular-nums; color: var(--accent-text); white-space: nowrap; }
+.hint { font-size: 12.5px; color: var(--ink-3); }
+.probe-line { display: flex; align-items: center; gap: 10px; }
+.chart-wrap { position: relative; }
+.chart { width: 100%; display: block; touch-action: pan-y; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); }
+.ch-text { fill: var(--ink-3); font: 11px var(--font); }
+.ch-text-2 { fill: var(--ink-2); font: 500 11px var(--font); }
+.ch-grid { stroke: var(--line); stroke-width: 1; }
+.ch-leg { fill: var(--surface-2); opacity: .7; }
+.ch-sep { stroke: var(--line-2); stroke-width: 1; }
+.ch-core { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.ch-air { fill: none; stroke: var(--heat); stroke-width: 2; stroke-linejoin: round; }
+.ch-band { fill: var(--accent); opacity: .16; }
+.ch-ref { stroke: var(--ink-3); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.ch-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.ch-dot-air { fill: var(--heat); stroke: var(--surface); stroke-width: 2; }
+.ch-probe { fill: var(--ink); stroke: var(--surface); stroke-width: 2; }
+.ch-cross { stroke: var(--ink-2); stroke-width: 1; }
+.tip { position: absolute; z-index: 6; pointer-events: none; min-width: 168px; max-width: 220px; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line-2); box-shadow: 0 6px 18px rgba(0, 0, 0, .16); font-size: 12px; line-height: 1.45; }
+.tip b { font-variant-numeric: tabular-nums; }
+.tip .tip-h { font-weight: 600; margin-bottom: 2px; }
+.tip i { display: inline-block; width: 12px; border-top-width: 2px; border-top-style: solid; margin-right: 6px; vertical-align: middle; }
+
+.bridge { display: flex; flex-direction: column; gap: 6px; }
+.br-row { display: grid; grid-template-columns: minmax(96px, 34%) minmax(0, 1fr) 58px; gap: 10px; align-items: center; font-size: 13px; }
+.br-label { min-width: 0; overflow-wrap: anywhere; }
+.br-label small { display: block; color: var(--ink-3); font-size: 11.5px; }
+.br-track { position: relative; height: 16px; border-radius: 3px; background: var(--surface-2); direction: ltr; }
+.br-bar { position: absolute; top: 0; bottom: 0; border-radius: 3px; min-width: 2px; }
+.br-printed { background: var(--ink-3); }
+.br-loss { background: var(--heat); }
+.br-real { background: var(--accent); }
+.br-val { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.br-val.dim { color: var(--ink-3); font-weight: 500; }
+.rails { list-style: none; padding: 0; display: grid; gap: 10px; }
+.rails li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; font-size: 13px; color: var(--ink-2); }
+.rails li b { color: var(--ink); display: block; }
+.rails .ic { margin-top: 2px; color: var(--ok-ink); }
+.rails .bad .ic { color: var(--crit-ink); }
+details.fold { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+details.fold > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; font-size: 14px; list-style: none; display: flex; justify-content: space-between; gap: 8px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::after { content: "+"; color: var(--ink-3); font-size: 18px; line-height: 1; }
+details.fold[open] > summary::after { content: "\2212"; }
+details.fold .fold-in { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: var(--ink-2); }
+pre.math, pre.audit { margin: 0; padding: 12px; border-radius: 8px; background: var(--surface-2); color: var(--ink); font: 12.5px/1.6 var(--mono); overflow-x: auto; white-space: pre; }
+.mini { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.mini th { text-align: left; font-weight: 600; color: var(--ink-3); padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); }
+.mini td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.mini .r { text-align: right; padding-right: 0; }
+.scroll-x { overflow-x: auto; }
+
+/* capture */
+.cap-grid { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.phone { width: 100%; max-width: 400px; margin-inline: auto; border: 1px solid var(--line-2); border-radius: 26px; background: var(--surface-2); overflow: hidden; display: flex; flex-direction: column; }
+.phone-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.phone-head .av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-ink); flex: none; }
+.phone-head .av svg { width: 20px; height: 20px; }
+.phone-head b { display: block; font-size: 14px; }
+.phone-head span { font-size: 12px; color: var(--ink-3); }
+.chat { padding: 14px 12px 18px; display: flex; flex-direction: column; gap: 8px; }
+.when { align-self: center; font-size: 11.5px; color: var(--ink-3); background: var(--surface); border-radius: 999px; padding: 3px 10px; margin-block: 6px 2px; }
+.msg { display: flex; max-width: 90%; min-width: 0; }
+.msg.in { align-self: flex-start; }
+.msg.out { align-self: flex-end; }
+.bubble { min-width: 0; padding: 8px 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.msg.in .bubble { border-start-start-radius: 4px; }
+.msg.out .bubble { background: var(--accent-soft); border-color: transparent; border-start-end-radius: 4px; }
+.photo svg { display: block; width: 100%; height: auto; border-radius: 8px; margin-bottom: 6px; }
+.voice { display: flex; align-items: center; gap: 8px; color: var(--accent-ink); font-size: 12.5px; }
+.voice svg { width: 22px; height: 22px; flex: none; }
+.voice .wave { flex: 1; height: 20px; min-width: 70px; }
+.sub { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
+.rc { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13.5px; margin-block: 6px; }
+.rc dt { color: var(--ink-3); }
+.rc dd { margin: 0; font-weight: 500; }
+.qr { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.qbtn { min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--accent); background: transparent; color: var(--accent-text); font: 600 13px/1 var(--font); cursor: pointer; }
+.qbtn:hover:not(:disabled) { background: var(--accent-soft); }
+.qbtn:disabled { opacity: .55; cursor: default; }
+.qbtn.on { background: var(--accent); color: var(--on-accent); opacity: 1; }
+.task { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+.task:first-of-type { border-top: 0; padding-top: 0; margin-top: 6px; }
+.task .tn { font-size: 12px; color: var(--ink-3); margin-bottom: 2px; }
+.phone-foot { padding: 10px 14px; background: var(--surface); border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-3); }
+.steps { list-style: none; padding: 0; display: grid; gap: 14px; counter-reset: s; }
+.steps li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; }
+.steps li::before { counter-increment: s; content: counter(s); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 600 13px/1 var(--font); background: var(--accent-soft); color: var(--accent-ink); }
+.steps b { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 15px; }
+.steps p { color: var(--ink-2); margin-top: 2px; }
+.live-out { display: flex; flex-direction: column; gap: 10px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.fld { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); min-width: 0; }
+.fld.unsure { border-color: var(--warn); background: var(--warn-soft); }
+.fld span { display: block; font: 600 11px/1.2 var(--font); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+.fld b { display: block; font-weight: 600; margin-top: 2px; overflow-wrap: anywhere; }
+.note { font-size: 12.5px; color: var(--ink-2); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.note.warn { background: var(--warn-soft); color: var(--warn-ink); }
+
+/* impact */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tile .v { font: 600 32px/1.1 var(--font); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.tile .v small { font: 500 14px/1 var(--font); color: var(--ink-2); letter-spacing: 0; margin-left: 4px; }
+.tile .k { font: 600 11.5px/1.2 var(--font); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+.tile .n { font-size: 12.5px; color: var(--ink-2); }
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.tbl { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 13px; }
+.tbl th { text-align: left; padding: 10px 10px; font: 600 11px/1.2 var(--font); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--line-2); white-space: nowrap; background: var(--surface-2); }
+.tbl td { padding: 10px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tbl td small { display: block; color: var(--ink-3); font-size: 11.5px; }
+.st { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; font-size: 12px; }
+.st-ok { color: var(--ok-ink); }
+.st-wait { color: var(--warn-ink); }
+.st-off { color: var(--ink-3); }
+.rules { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--ink-2); font-size: 13.5px; max-width: 80ch; }
+.rules b { color: var(--ink); }
+.csv { font: 12px/1.5 var(--mono); }
+
+/* real vs simulated */
+.rt { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.rt-row { display: grid; grid-template-columns: minmax(150px, 22%) minmax(0, 1fr) 150px; gap: 8px 16px; padding: 14px 16px; border-top: 1px solid var(--line); align-items: start; }
+.rt-row:first-child { border-top: 0; }
+.rt-row b { font-weight: 600; }
+.rt-row p { color: var(--ink-2); }
+.rt-row .badges { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-start; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 16px; }
+.cols-ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--ink-2); }
+.cols-ul b { color: var(--ink); }
+.foot { padding-block: 24px 40px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 12.5px; display: flex; flex-direction: column; gap: 4px; }
+
+@media (max-width: 899px) {
+  .twin-grid { grid-template-columns: minmax(0, 1fr); }
+  .cap-grid { grid-template-columns: minmax(0, 1fr); }
+  .live-wrap { display: block; }
+}
+@media (max-width: 720px) {
+  .rt-row { grid-template-columns: minmax(0, 1fr); }
+  .br-row { grid-template-columns: minmax(104px, 38%) minmax(0, 1fr) 44px; gap: 8px; }
+  .sum { gap: 12px 22px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .row, .btn, .tab { transition: background-color .15s, border-color .15s, filter .15s; }
+}
+@media (forced-colors: active) {
+  .rbar-band, .br-bar, .chip { forced-color-adjust: none; }
+}
+
+/* additions */
+.why-d > summary { cursor: pointer; font-size: 12.5px; color: var(--accent-text); list-style: none; }
+.why-d > summary::-webkit-details-marker { display: none; }
+.why-d[open] > summary { margin-bottom: 6px; }
+.lg-qa { width: 18px; height: 0; border-top: 2px dotted var(--crit); }
+.ch-qa { stroke: var(--crit); stroke-width: 1.4; stroke-dasharray: 2 3; }
+.ch-hit { cursor: crosshair; }
+.done-mark { color: var(--ok-ink); width: 20px; height: 20px; flex: none; }
+.row-head .btn { flex: none; }
+.rbar-ends span:last-child { text-align: right; }
+.tn { font-weight: 600; }
+.task:focus { outline: none; }
+.phone .chat { min-height: 120px; }
+.psub { color: var(--ink-3); }
+@media (max-width: 899px) { .chart-wrap { margin-inline: -4px; } }
+.row-head > .chip { min-width: 104px; justify-content: flex-start; }
+.tbl td:first-child { white-space: nowrap; }
+.tbl { min-width: 900px; }
+.tab .short { display: none; }
+.live-bar .rbar { margin-top: 4px; }
+@media (max-width: 560px) {
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border: 0; background: transparent; overflow: visible; width: 100%; }
+  .seg.seg-3 { grid-template-columns: repeat(3, 1fr); }
+  .seg button, .seg button:last-child { border: 1px solid var(--line-2); border-radius: 8px; background: var(--surface); min-height: 40px; padding: 0 8px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .tab { padding: 0 10px; }
+  .tab .long { display: none; }
+  .tab .short { display: inline; }
+  .bar .field { width: 100%; }
+  .bar select { width: 100%; }
+}
+
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><path d="M7 7h.01"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M10 9v6M14 9v6"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><path d="M7.9 2h8.2L22 7.9v8.2L16.1 22H7.9L2 16.1V7.9z"/><path d="M9 9l6 6M15 9l-6 6"/></symbol>
+    <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></symbol>
+    <symbol id="i-ok" viewBox="0 0 24 24"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4L12 14l-3-3"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="currentColor"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  </defs>
+</svg>
+
+<header class="wrap top">
+  <div class="top-row">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--ink)"/><rect x="7" y="10" width="18" height="4" rx="2" fill="var(--bg)" opacity=".55"/><rect x="7" y="18" width="11" height="4" rx="2" fill="#5FB2EA"/><rect x="24" y="8" width="2" height="16" rx="1" fill="var(--bg)"/></svg>
+      <span>ShelfTwin</span>
+    </div>
+    <div class="pills">
+      <span class="pill">Prototype v0.1</span>
+      <span class="pill pill-sim">All data simulated</span>
+      <span class="pill">Parameters illustrative</span>
+    </div>
+  </div>
+  <div class="hero">
+    <h1>Know how much shelf life each batch really has left.</h1>
+    <p>ShelfTwin follows every batch through the cold chain, tells each store and distributor each morning what to do about it, and counts only the outcomes that are confirmed.</p>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Prototype sections">
+  <div class="wrap tabs-in" role="tablist" aria-label="Prototype sections">
+    <button class="tab" role="tab" id="tab-today" aria-controls="view-today" data-tab="today"><span class="long">Morning list</span><span class="short">Morning</span></button>
+    <button class="tab" role="tab" id="tab-twin" aria-controls="view-twin" data-tab="twin"><span class="long">Batch twin</span><span class="short">Twin</span></button>
+    <button class="tab" role="tab" id="tab-capture" aria-controls="view-capture" data-tab="capture"><span class="long">Capture</span><span class="short">Capture</span></button>
+    <button class="tab" role="tab" id="tab-impact" aria-controls="view-impact" data-tab="impact"><span class="long">Impact ledger</span><span class="short">Impact</span></button>
+    <button class="tab" role="tab" id="tab-real" aria-controls="view-real" data-tab="real"><span class="long">Real vs simulated</span><span class="short">What’s real</span></button>
+  </div>
+</nav>
+
+<main>
+  <section class="wrap view" id="view-today" role="tabpanel" aria-labelledby="tab-today" hidden></section>
+  <section class="wrap view" id="view-twin" role="tabpanel" aria-labelledby="tab-twin" hidden></section>
+  <section class="wrap view" id="view-capture" role="tabpanel" aria-labelledby="tab-capture" hidden></section>
+  <section class="wrap view" id="view-impact" role="tabpanel" aria-labelledby="tab-impact" hidden></section>
+  <section class="wrap view" id="view-real" role="tabpanel" aria-labelledby="tab-real" hidden></section>
+</main>
+
+<footer class="wrap foot">
+  <span>ShelfTwin prototype v0.1. Demo data only: the stores, distributor, products, batches, temperatures and sales are made up.</span>
+  <span>Model parameters are illustrative and to be calibrated on pilot data. No accuracy claim is made.</span>
+</footer>
+<div id="live" class="sr" role="status" aria-live="polite"></div>
+
+<script>
+/* ShelfTwin engine v0.1
+ * Pure functions, no DOM. Runs in the browser and in Node (for tests).
+ *
+ * Every parameter below is ILLUSTRATIVE and marked "to be calibrated on pilot
+ * data". The structure (heat transfer -> kinetics -> range -> one action) is
+ * the product; the numbers are placeholders.
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.ShelfTwin = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  // ---------------------------------------------------------------- parameters
+  // tau  = hours for the core of the pack to close 63% of a temperature gap
+  //        [fast = single case in open air, slow = pallet core]
+  // q10  = how many times faster spoilage runs per +10 C   [low, high]
+  // Tref = temperature the printed date assumes
+  // span = above Tref + span the curve stops climbing (growth saturates)
+  // qaT / qaMin = example QA rule: core at or above qaT for qaMin minutes
+  var CATEGORIES = {
+    milk: {
+      label: 'Fresh milk and cream', Tref: 4, span: 26, q10: [3.0, 4.0], tau: [2.0, 8.0], qaT: 10, qaMin: 60,
+      cold: true, storeLabel: 'Chiller', storeRange: [1, 12], legT: { factory: 3, dc: 4, truck: 5 }, buffer: 1.0
+    },
+    yogurt: {
+      label: 'Yogurt, laban, labneh, dips', Tref: 4, span: 26, q10: [2.0, 3.0], tau: [1.0, 6.0], qaT: 12, qaMin: 90,
+      cold: true, storeLabel: 'Chiller', storeRange: [1, 12], legT: { factory: 3, dc: 4, truck: 5 }, buffer: 1.0
+    },
+    juice: {
+      label: 'Fresh juice', Tref: 4, span: 26, q10: [2.0, 3.0], tau: [2.0, 8.0], qaT: 12, qaMin: 90,
+      cold: true, storeLabel: 'Chiller', storeRange: [1, 12], legT: { factory: 3, dc: 4, truck: 5 }, buffer: 1.0
+    },
+    rte: {
+      label: 'Ready-to-eat', Tref: 4, span: 26, q10: [3.0, 4.0], tau: [0.5, 3.0], qaT: 8, qaMin: 60,
+      cold: true, storeLabel: 'Chiller', storeRange: [1, 12], legT: { factory: 3, dc: 4, truck: 5 }, buffer: 0.75
+    },
+    bakery: {
+      label: 'Bakery', Tref: 24, span: 16, q10: [1.6, 2.4], tau: [0.5, 3.0], qaT: null, qaMin: 0,
+      cold: false, storeLabel: 'Shelf area', storeRange: [18, 34], legT: { factory: 24, dc: 24, truck: 28 }, buffer: 0.5
+    }
+  };
+
+  // Uncertainty (C, plus/minus) by where a temperature came from.
+  var SIGMA = { logger: 0.5, assumed: 2.0, weather: 3.0 };
+
+  // Gulf-calendar demand multipliers by category. Illustrative: the real
+  // product learns these from sales data.
+  var CALENDARS = {
+    normal:   { label: 'Normal week',          m: { milk: 1.0, yogurt: 1.0, juice: 1.0, rte: 1.0, bakery: 1.0 } },
+    ramadan:  { label: 'Ramadan evenings',     m: { milk: 1.4, yogurt: 1.6, juice: 1.8, rte: 0.8, bakery: 1.3 } },
+    eid:      { label: 'Eid week',             m: { milk: 1.3, yogurt: 1.4, juice: 1.4, rte: 1.5, bakery: 1.5 } },
+    national: { label: 'National Day weekend', m: { milk: 1.0, yogurt: 1.1, juice: 1.5, rte: 1.6, bakery: 1.2 } }
+  };
+
+  var PARAMS = {
+    bufferDays: 1.0,        // stop selling this long before the conservative end of life
+    holdBelowDays: 0.5,     // modelled life this short: a person decides
+    minDonateDays: 1.0,     // a donation needs at least this much real life left
+    markdownDepths: [0.1, 0.2, 0.3, 0.4, 0.5],
+    elasticity: 3.0,        // demand multiplier = 1 + elasticity x depth
+    moveMinUnits: 4,
+    minSurplus: 3,          // fewer units than this at risk: not worth an action
+    reorderLeadDays: 1.0,   // next delivery
+    reorderCoverDays: 2.0,  // cover to order for beyond the lead time
+    mealKg: 0.9,            // kg per meal equivalent
+    co2ePerKg: 2.4          // kg CO2e per kg food: ILLUSTRATIVE placeholder
+  };
+
+  // ------------------------------------------------------------------- helpers
+  function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
+  function round1(x) { return Math.round(x * 10) / 10; }
+
+  function rate(T, q10, cat) {
+    var Te = Math.min(T, cat.Tref + cat.span);
+    var r = Math.pow(q10, (Te - cat.Tref) / 10);
+    return r < 1 ? 1 : r;          // never credit cold: the printed date is the ceiling
+  }
+
+  function pick(ov, b, key) {
+    return ov && ov[key] !== undefined ? ov[key] : b[key];
+  }
+
+  // ---------------------------------------------------------------- journey
+  // One batch's story as a list of legs, oldest first.
+  function buildLegs(b, sku, ov) {
+    var cat = CATEGORIES[sku.cat];
+    var failH = cat.cold ? clamp(+pick(ov, b, 'failH') || 0, 0, b.truckH) : 0;
+    var bayH = (+pick(ov, b, 'bayMin') || 0) / 60;
+    var outdoor = +pick(ov, b, 'outdoorC');
+    var chillerT = +pick(ov, b, 'chillerT');
+    var probe = pick(ov, b, 'probe');
+    if (probe === undefined) probe = null;
+
+    var pre = b.producedAgoH - b.deliveredAgoH;
+    var dcH = Math.min(b.dcH == null ? 8 : b.dcH, Math.max(0, pre - b.truckH - bayH));
+    var factoryH = Math.max(0, pre - b.truckH - bayH - dcH);
+    var logs = b.logs || {};
+
+    var legs = [
+      { id: 'factory', label: 'Producer', hours: factoryH, T: cat.legT.factory, src: 'assumed' },
+      { id: 'dc', label: 'Distributor', hours: dcH, T: cat.legT.dc, src: logs.dc ? 'logger' : 'assumed' },
+      { id: 'truck', label: 'Truck', hours: b.truckH - failH, T: cat.legT.truck, src: logs.truck ? 'logger' : 'assumed' }
+    ];
+    if (failH > 0.001) {
+      legs.push({ id: 'fail', label: 'Truck, cooling off', hours: failH, T: Math.max(outdoor - 4, cat.legT.truck), src: logs.truck ? 'logger' : 'assumed' });
+    }
+    legs.push({ id: 'bay', label: 'Receiving bay', hours: bayH, T: outdoor, src: 'weather', obs: probe });
+    legs.push({ id: 'store', label: cat.storeLabel, hours: b.deliveredAgoH, T: chillerT, src: logs.chiller ? 'logger' : 'assumed' });
+
+    legs = legs.filter(function (l) { return l.hours > 0.005; });
+    legs.forEach(function (l) { l.sigma = SIGMA[l.src]; });
+    // An observation on a leg that was filtered out (no bay wait) moves to the next leg's start.
+    if (probe !== null && !legs.some(function (l) { return l.id === 'bay'; })) {
+      var i = legs.findIndex(function (l) { return l.id === 'store'; });
+      legs[Math.max(0, i - 1)].obs = probe;
+    }
+    return legs;
+  }
+
+  function totalHours(legs) { return legs.reduce(function (s, l) { return s + l.hours; }, 0); }
+
+  // One corner of the parameter space: simulate heat transfer, accumulate
+  // spoilage, then project forward at the current storage temperature.
+  function simulate(legs, cat, L, k, wantSeries) {
+    var Tc = legs[0].T + k.dT * legs[0].sigma;
+    var age = 0, cal = 0, minAbove = 0, peak = Tc;
+    var lost = {};
+    var t = -totalHours(legs);
+    var S = wantSeries ? { t: [t], air: [legs[0].T + k.dT * legs[0].sigma], core: [Tc], lost: [0], obsAt: [] } : null;
+
+    legs.forEach(function (leg) {
+      var Tair = leg.T + k.dT * leg.sigma;
+      var n = Math.max(1, Math.min(240, Math.ceil(leg.hours / 0.1)));
+      var dt = leg.hours / n, e = Math.exp(-dt / k.tau), lostLeg = 0;
+      for (var i = 0; i < n; i++) {
+        var Tprev = Tc;
+        Tc = Tair + (Tc - Tair) * e;
+        var r = 0.5 * (rate(Tprev, k.q10, cat) + rate(Tc, k.q10, cat));
+        age += r * dt / 24; cal += dt / 24; lostLeg += (r - 1) * dt / 24;
+        if (cat.qaT != null && Tc >= cat.qaT) minAbove += dt * 60;
+        if (Tc > peak) peak = Tc;
+        t += dt;
+        if (S) { S.t.push(t); S.air.push(Tair); S.core.push(Tc); S.lost.push(age - cal); }
+      }
+      if (leg.obs != null) {            // a measured core temperature beats a modelled one
+        Tc = leg.obs;
+        if (S) { S.t.push(t); S.air.push(Tair); S.core.push(Tc); S.lost.push(age - cal); S.obsAt.push(S.t.length - 1); }
+      }
+      lost[leg.id] = lostLeg;
+    });
+
+    var ageNow = age;
+    var last = legs[legs.length - 1];
+    var Tstore = last.T + k.dT * last.sigma;
+    var fwd = 0;
+    while (age < L && fwd < 60 * 24) {
+      var dt2 = fwd < 24 ? 0.25 : 2;
+      var Tp = Tc;
+      Tc = Tstore + (Tc - Tstore) * Math.exp(-dt2 / k.tau);
+      var r2 = 0.5 * (rate(Tp, k.q10, cat) + rate(Tc, k.q10, cat));
+      var inc = r2 * dt2 / 24;
+      if (age + inc >= L) { fwd += dt2 * (L - age) / inc; age = L; break; }
+      age += inc; fwd += dt2;
+    }
+    return { ageNow: ageNow, calNow: cal, remaining: fwd / 24, minAbove: minAbove, peak: peak, lost: lost, S: S };
+  }
+
+  // The twin: run the batch's story through every corner of the uncertainty
+  // box and report the spread. low is the end the system acts on.
+  function twin(b, sku, ov) {
+    var cat = CATEGORIES[sku.cat];
+    var legs = buildLegs(b, sku, ov);
+    var L = sku.lifeDays;
+    var hours = totalHours(legs);
+    var printedRemaining = L - hours / 24;
+
+    var corners = [];
+    [cat.tau[0], cat.tau[1]].forEach(function (tau) {
+      [cat.q10[0], cat.q10[1]].forEach(function (q10) {
+        [-1, 1].forEach(function (dT) { corners.push({ tau: tau, q10: q10, dT: dT }); });
+      });
+    });
+    var centre = { tau: Math.sqrt(cat.tau[0] * cat.tau[1]), q10: (cat.q10[0] + cat.q10[1]) / 2, dT: 0 };
+
+    var runs = corners.map(function (k) { return simulate(legs, cat, L, k, true); });
+    var mid = simulate(legs, cat, L, centre, true);
+
+    var cap = Math.max(0, printedRemaining);
+    var rem = runs.map(function (r) { return Math.min(r.remaining, cap); });
+    var low = Math.min.apply(null, rem), high = Math.max.apply(null, rem);
+    var midRem = clamp(Math.min(mid.remaining, cap), low, high);
+
+    var n = mid.S.t.length;
+    var coreLo = [], coreHi = [];
+    for (var i = 0; i < n; i++) {
+      var lo = Infinity, hi = -Infinity;
+      for (var j = 0; j < runs.length; j++) {
+        var c = runs[j].S.core[i];
+        if (c < lo) lo = c; if (c > hi) hi = c;
+      }
+      coreLo.push(lo); coreHi.push(hi);
+    }
+
+    var width = high - low;
+    var rel = width / Math.max(midRem, 0.5);
+    var confidence = (width <= 0.5 || rel <= 0.25) ? 'high' : rel <= 0.6 ? 'medium' : 'low';
+
+    var probe = null;
+    legs.forEach(function (l) { if (l.obs != null) probe = l.obs; });
+    var breachMinutes = Math.round(mid.minAbove);
+    var breach = cat.qaT != null && (breachMinutes >= cat.qaMin || (probe !== null && probe >= cat.qaT));
+
+    var lostByLeg = legs.map(function (l) { return { id: l.id, label: l.label, days: mid.lost[l.id] || 0, hours: l.hours, T: l.T, src: l.src }; });
+    var lostSoFar = mid.ageNow - mid.calNow;
+    var refRemaining = Math.max(0, L - mid.ageNow);
+    var futureLoss = Math.max(0, refRemaining - mid.remaining);
+
+    return {
+      legs: legs, L: L, cat: cat,
+      printedRemaining: printedRemaining,
+      calAge: hours / 24,
+      low: low, mid: midRem, high: high, width: width, confidence: confidence,
+      breach: breach, breachMinutes: breachMinutes, peakCore: mid.peak, probe: probe,
+      lostByLeg: lostByLeg, lostSoFar: lostSoFar, futureLoss: futureLoss,
+      series: { t: mid.S.t, air: mid.S.air, core: mid.S.core, coreLo: coreLo, coreHi: coreHi, lost: mid.S.lost, obsAt: mid.S.obsAt },
+      cornerCount: corners.length
+    };
+  }
+
+  // ----------------------------------------------------------------- decisions
+  function fmtD(x) { return (Math.round(x * 10) / 10).toFixed(1); }
+
+  function velocity(ctx, storeId, skuId) {
+    var v = ctx.velocities[skuId];
+    return v ? (v[storeId] || 0) : 0;
+  }
+  function mult(ctx, catKey) { return CALENDARS[ctx.calendar].m[catKey]; }
+  function stockAt(ctx, storeId, skuId) {
+    return ctx.batches.reduce(function (s, b) { return s + (b.store === storeId && b.sku === skuId ? b.qty : 0); }, 0);
+  }
+  function transit(ctx, a, b) {
+    var t = ctx.transit[a + '>' + b];
+    if (t == null) t = ctx.transit[b + '>' + a];
+    return t == null ? 1 : t;
+  }
+
+  function atRisk(units, sku) {
+    return { units: units, kg: units * sku.kg, aed: units * sku.cost };
+  }
+
+  function decide(b, sku, tw, ctx, exclude) {
+    exclude = exclude || [];
+    var P = PARAMS;
+    var cat = CATEGORIES[sku.cat];
+    var buf = cat.buffer != null ? cat.buffer : P.bufferDays;
+    var v = velocity(ctx, b.store, sku.id) * mult(ctx, sku.cat);
+    var daysToSell = v > 0 ? b.qty / v : Infinity;
+    var sellable = Math.max(0, tw.low - buf);
+    var surplus = Math.max(0, Math.ceil(b.qty - v * sellable - 1e-9));
+    var worthActing = surplus >= Math.max(P.minSurplus, Math.ceil(0.08 * b.qty));
+    var out = {
+      action: 'ok', units: 0, reasons: [], detail: {},
+      stats: { v: v, daysToSell: daysToSell, sellable: sellable, surplus: surplus, cover: v > 0 ? b.qty / v : Infinity },
+      risk: atRisk(0, sku), excluded: exclude.slice()
+    };
+    var range = fmtD(tw.low) + '–' + fmtD(tw.high);
+    var realVsPrinted = 'Real shelf life ' + range + ' days; the printed date says ' + fmtD(tw.printedRemaining) + '.';
+
+    // 1. Hard stops. These come before any saving action.
+    if (tw.printedRemaining <= 0) {
+      out.action = 'remove'; out.units = b.qty; out.risk = atRisk(b.qty, sku);
+      out.reasons = ['The printed date has passed. It leaves the shelf. No exceptions.'];
+      return out;
+    }
+    var holdWhy = null;
+    if (tw.breach) {
+      holdWhy = tw.probe !== null && tw.probe >= cat.qaT
+        ? 'The receiving probe read ' + fmtD(tw.probe) + ' °C. QA rule: ' + cat.qaT + ' °C or more needs a person to look.'
+        : 'Modelled core temperature was ' + cat.qaT + ' °C or more for ' + tw.breachMinutes + ' min (QA rule: ' + cat.qaMin + ' min).';
+    } else if (tw.low <= 0 || tw.mid <= P.holdBelowDays) {
+      holdWhy = 'The model puts real shelf life at ' + range + ' days, close to nothing, while the printed date is later. A person decides.';
+    } else if (tw.confidence === 'low' && tw.low < daysToSell + buf) {
+      holdWhy = 'The range is wide (' + range + ' days) and the low end does not cover the time to sell. Not enough data to act on. A person checks.';
+    }
+    if (holdWhy) {
+      out.action = 'hold'; out.units = b.qty; out.risk = atRisk(b.qty, sku);
+      out.reasons = [holdWhy, 'Do not sell. Keep it chilled, tag it, call QA. The twin never clears a hold by itself.'];
+      return out;
+    }
+
+    // 2. Enough time to sell it all, or too little at risk to act on. Maybe a stock-out.
+    if (!worthActing) {
+      var cover = out.stats.cover;
+      if (exclude.indexOf('reorder') < 0 && cover < P.reorderLeadDays && v > 0) {
+        var qty = Math.max(1, Math.ceil(v * (P.reorderLeadDays + P.reorderCoverDays) - b.qty));
+        out.action = 'reorder'; out.units = qty;
+        out.detail = { qty: qty, coverDays: cover, hoursLeft: Math.round(cover * 24) };
+        out.reasons = ['At ' + fmtD(v) + ' units a day, ' + b.qty + ' units last ' + fmtD(cover) + ' days. The next delivery is in ' + P.reorderLeadDays + ' day.',
+          'Real shelf life is not the issue (' + range + ' days), so the order is safe to place.'];
+        return out;
+      }
+      out.reasons = [realVsPrinted, 'At ' + fmtD(v) + ' units a day it sells in ' + fmtD(daysToSell) + ' days, inside the ' + fmtD(sellable) + ' days it can safely be sold.'];
+      return out;
+    }
+
+    // 3. Some units will not sell in time. Best saving action that is feasible.
+    out.risk = atRisk(surplus, sku);
+    var why = [realVsPrinted,
+      'At ' + fmtD(v) + ' units a day, ' + b.qty + ' units take ' + fmtD(daysToSell) + ' days. It can safely be sold for ' + fmtD(sellable) + ' days. About ' + surplus + ' units are at risk.'];
+
+    // 3a. Move to a store that sells it faster.
+    if (exclude.indexOf('move') < 0) {
+      var best = null;
+      ctx.stores.forEach(function (s) {
+        if (s.id === b.store) return;
+        var tr = transit(ctx, b.store, s.id);
+        var sellDest = tw.low - tr - buf;
+        if (sellDest <= 0.5) return;
+        var vD = velocity(ctx, s.id, sku.id) * mult(ctx, sku.cat);
+        var stockD = stockAt(ctx, s.id, sku.id);
+        var room = Math.floor(vD * sellDest - stockD);
+        var units = Math.min(surplus, room);
+        if (units >= P.moveMinUnits && units >= Math.ceil(surplus * 0.5) && (!best || units > best.units)) {
+          best = { dest: s, units: units, transit: tr, vD: vD, stockD: stockD, sellDest: sellDest };
+        }
+      });
+      if (best) {
+        out.action = 'move'; out.units = best.units;
+        out.risk = atRisk(surplus, sku);
+        out.detail = { destId: best.dest.id, destName: best.dest.name, units: best.units, transitDays: best.transit, vDest: best.vD, stockDest: best.stockD };
+        out.reasons = why.concat([best.dest.name + ' sells ' + fmtD(best.vD) + ' a day and holds ' + best.stockD + ' now. It can take ' + best.units + ' more and sell them in time. Next truck: ' + fmtD(best.transit) + ' day.']);
+        return out;
+      }
+    }
+
+    // 3b. Mark down by the smallest depth that clears the surplus.
+    var markdownFallback = null;
+    if (exclude.indexOf('markdown') < 0) {
+      var cap = sku.maxMarkdown == null ? 0.5 : sku.maxMarkdown;
+      var depths = P.markdownDepths.filter(function (d) { return d <= cap + 1e-9; });
+      for (var i = 0; i < depths.length; i++) {
+        var d = depths[i];
+        var v2 = v * (1 + P.elasticity * d);
+        if (v2 * sellable >= b.qty - 1e-9) {
+          out.action = 'markdown'; out.units = surplus;
+          out.detail = { depth: d, vAfter: v2, units: surplus, clears: true };
+          out.reasons = why.concat(['A ' + Math.round(d * 100) + '% markdown lifts sales to about ' + fmtD(v2) + ' a day (illustrative price response), enough to clear it in time.']);
+          return out;
+        }
+      }
+      if (depths.length) {
+        var dm = depths[depths.length - 1];
+        var v3 = v * (1 + P.elasticity * dm);
+        markdownFallback = { depth: dm, vAfter: v3, sold: Math.floor(v3 * sellable) };
+      }
+    }
+
+    // 3c. Donate what will not sell.
+    if (exclude.indexOf('donate') < 0 && sku.donatable !== false && tw.low >= P.minDonateDays) {
+      out.action = 'donate'; out.units = surplus;
+      out.detail = { units: surplus, lifeLow: tw.low };
+      out.reasons = why.concat([
+        'Markdown alone cannot clear it' + (markdownFallback ? ' (even ' + Math.round(markdownFallback.depth * 100) + '% sells about ' + markdownFallback.sold + ' of ' + b.qty + ')' : '') + '.',
+        'It still has at least ' + fmtD(tw.low) + ' days of real life, enough for a partner to collect and distribute it. Keep selling the rest.']);
+      return out;
+    }
+
+    // 3d. Best remaining effort, said plainly.
+    if (markdownFallback) {
+      var left = Math.max(0, b.qty - markdownFallback.sold);
+      out.action = 'markdown'; out.units = surplus;
+      out.detail = { depth: markdownFallback.depth, vAfter: markdownFallback.vAfter, units: surplus, clears: false, leftover: left };
+      out.reasons = why.concat(['Even ' + Math.round(markdownFallback.depth * 100) + '% may leave about ' + left + ' units. Nothing else is feasible for this batch.']);
+      return out;
+    }
+
+    // 3e. Everything feasible was ruled out: a person decides.
+    out.action = 'hold'; out.units = b.qty; out.risk = atRisk(b.qty, sku);
+    out.reasons = why.concat(['No safe saving action is left for this batch. A person decides: clearance, donation or removal.']);
+    return out;
+  }
+
+  // --------------------------------------------------------------------- plan
+  var ORDER = { remove: 0, hold: 1, move: 2, markdown: 3, donate: 4, reorder: 5, ok: 6 };
+
+  function makeCtx(o) {
+    return {
+      calendar: o.calendar || 'normal', stores: o.stores, batches: o.batches,
+      velocities: o.velocities, transit: o.transit
+    };
+  }
+
+  function planStore(ctx, skus, storeId, overrides, tasks) {
+    var rows = [];
+    ctx.batches.forEach(function (b) {
+      if (b.store !== storeId) return;
+      var sku = skus[b.sku];
+      var tw = twin(b, sku, overrides[b.id]);
+      var excl = tasks[b.id] ? tasks[b.id].excluded : [];
+      var d = decide(b, sku, tw, ctx, excl);
+      rows.push({ batch: b, sku: sku, twin: tw, decision: d });
+    });
+    rows.sort(function (x, y) {
+      var a = ORDER[x.decision.action] - ORDER[y.decision.action];
+      if (a !== 0) return a;
+      return y.decision.risk.aed - x.decision.risk.aed;
+    });
+    return rows;
+  }
+
+  // ------------------------------------------------------------------- ledger
+  // Only confirmed outcomes count. A recommendation is never a saving.
+  function valueOf(action, units, sku, depth) {
+    var price = sku.price * (1 - (depth || 0));
+    return {
+      kg: units * sku.kg,
+      cost: units * sku.cost,
+      revenue: action === 'donate' ? 0 : units * price
+    };
+  }
+
+  function countsTowardSavings(row) {
+    return row.status === 'confirmed' && (row.action === 'move' || row.action === 'markdown' || row.action === 'donate');
+  }
+
+  function totals(rows) {
+    var t = { kg: 0, cost: 0, revenue: 0, meals: 0, co2e: 0, counted: 0, pending: 0, notCounted: 0 };
+    rows.forEach(function (r) {
+      if (countsTowardSavings(r)) {
+        t.kg += r.kg; t.cost += r.cost; t.revenue += r.revenue; t.counted++;
+      } else if (r.status === 'done') {
+        t.pending++;
+      } else {
+        t.notCounted++;
+      }
+    });
+    t.meals = t.kg / PARAMS.mealKg;
+    t.co2e = t.kg * PARAMS.co2ePerKg;
+    return t;
+  }
+
+  return {
+    CATEGORIES: CATEGORIES, CALENDARS: CALENDARS, PARAMS: PARAMS, SIGMA: SIGMA,
+    rate: rate, buildLegs: buildLegs, twin: twin, decide: decide,
+    makeCtx: makeCtx, planStore: planStore, stockAt: stockAt, velocity: velocity, mult: mult,
+    valueOf: valueOf, countsTowardSavings: countsTowardSavings, totals: totals,
+    fmtD: fmtD, round1: round1
+  };
+});
+
+</script>
+<script>
+/* ShelfTwin demo data. Everything here is SIMULATED.
+ * Stores, distributor, products, batches, temperatures and sales are made up.
+ * No real retailer, distributor or brand is named.
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.ShelfTwinData = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  var SKUS = {
+    'milk-1l':      { id: 'milk-1l',      name: 'Fresh milk 1 L',          cat: 'milk',   lifeDays: 8,  kg: 1.03, cost: 4.2, price: 6.5 },
+    'milk-2l':      { id: 'milk-2l',      name: 'Fresh milk 2 L',          cat: 'milk',   lifeDays: 8,  kg: 2.06, cost: 7.6, price: 11.5 },
+    'cream-250':    { id: 'cream-250',    name: 'Fresh cream 250 ml',      cat: 'milk',   lifeDays: 12, kg: 0.26, cost: 4.8, price: 7.0 },
+    'laban-1l':     { id: 'laban-1l',     name: 'Laban 1 L',               cat: 'yogurt', lifeDays: 14, kg: 1.03, cost: 3.9, price: 5.5 },
+    'yog-500':      { id: 'yog-500',      name: 'Greek yogurt 500 g',      cat: 'yogurt', lifeDays: 21, kg: 0.52, cost: 6.5, price: 9.5 },
+    'labneh-200':   { id: 'labneh-200',   name: 'Labneh 200 g',            cat: 'yogurt', lifeDays: 24, kg: 0.21, cost: 4.0, price: 6.0 },
+    'hummus-400':   { id: 'hummus-400',   name: 'Hummus 400 g',            cat: 'yogurt', lifeDays: 18, kg: 0.41, cost: 5.0, price: 8.0 },
+    'juice-or-1l':  { id: 'juice-or-1l',  name: 'Fresh orange juice 1 L',  cat: 'juice',  lifeDays: 7,  kg: 1.05, cost: 9.0, price: 14.0 },
+    'juice-mg-250': { id: 'juice-mg-250', name: 'Mango juice 250 ml',      cat: 'juice',  lifeDays: 7,  kg: 0.27, cost: 2.6, price: 4.0 },
+    'juice-ap-330': { id: 'juice-ap-330', name: 'Apple juice 330 ml',      cat: 'juice',  lifeDays: 10, kg: 0.34, cost: 3.2, price: 5.0 },
+    'wrap-chk':     { id: 'wrap-chk',     name: 'Chicken shawarma wrap',   cat: 'rte',    lifeDays: 4,  kg: 0.26, cost: 5.5, price: 11.0, donatable: false },
+    'fruit-cup':    { id: 'fruit-cup',    name: 'Fresh fruit cup 250 g',   cat: 'rte',    lifeDays: 4,  kg: 0.27, cost: 3.2, price: 6.5 },
+    'khubz-6':      { id: 'khubz-6',      name: 'Arabic bread, 6 pcs',     cat: 'bakery', lifeDays: 3,  kg: 0.36, cost: 1.8, price: 3.0, maxMarkdown: 0.3 }
+  };
+
+  var STORES = [
+    { id: 'quoz',   name: 'Demo Market, Al Quoz',    short: 'Al Quoz',   city: 'Dubai' },
+    { id: 'marina', name: 'Demo Market, Marina',     short: 'Marina',    city: 'Dubai' },
+    { id: 'khal',   name: 'Demo Market, Khalidiya',  short: 'Khalidiya', city: 'Abu Dhabi' }
+  ];
+
+  // Next distributor truck between stores, in days.
+  var TRANSIT = { 'quoz>marina': 0.3, 'quoz>khal': 0.8, 'marina>khal': 0.7 };
+
+  // Units sold per day, by product and store, in a normal week.
+  var VELOCITIES = {
+    'milk-1l':      { quoz: 14, marina: 10, khal: 8 },
+    'milk-2l':      { quoz: 6,  marina: 5,  khal: 4 },
+    'cream-250':    { quoz: 3,  marina: 3,  khal: 4 },
+    'laban-1l':     { quoz: 10, marina: 8,  khal: 6 },
+    'yog-500':      { quoz: 4,  marina: 7,  khal: 5 },
+    'labneh-200':   { quoz: 1.5, marina: 5, khal: 3 },
+    'hummus-400':   { quoz: 5,  marina: 6,  khal: 4 },
+    'juice-or-1l':  { quoz: 8,  marina: 9,  khal: 12 },
+    'juice-mg-250': { quoz: 8,  marina: 14, khal: 6 },
+    'juice-ap-330': { quoz: 9,  marina: 8,  khal: 7 },
+    'wrap-chk':     { quoz: 6,  marina: 10, khal: 3 },
+    'fruit-cup':    { quoz: 5,  marina: 8,  khal: 3 },
+    'khubz-6':      { quoz: 20, marina: 16, khal: 12 }
+  };
+
+  var GATE = { dc: true, truck: true, chiller: true };
+
+  // Batch factory. P = hours since production, D = hours since it entered the
+  // store. Defaults describe a clean delivery into a chiller at 4.5 C.
+  function mk(id, store, sku, code, qty, P, D, o) {
+    o = o || {};
+    var bakery = SKUS[sku].cat === 'bakery';
+    return {
+      id: id, store: store, sku: sku, code: code, qty: qty,
+      producedAgoH: P, deliveredAgoH: D,
+      truckH: o.truckH != null ? o.truckH : 3, dcH: o.dcH != null ? o.dcH : 8,
+      failH: o.failH || 0, bayMin: o.bayMin != null ? o.bayMin : 20,
+      outdoorC: o.outdoorC != null ? o.outdoorC : 31,
+      chillerT: o.chillerT != null ? o.chillerT : (bakery ? 26 : 4.5),
+      probe: o.probe !== undefined ? o.probe : (bakery ? null : 4.8),
+      logs: o.logs || GATE,
+      cabinet: o.cabinet || null
+    };
+  }
+
+  var BATCHES = [
+    // Al Quoz: the store the demo opens on.
+    mk('b01', 'quoz', 'yog-500',      'L2611-B',  36, 120, 46, { chillerT: 8.5, probe: 9,  cabinet: 'Chiller 3 drifted to 8.5 °C for two days' }),
+    mk('b02', 'quoz', 'milk-1l',      'M2611-14', 48,  72, 30, { truckH: 3.5, failH: 2.5, bayMin: 40, probe: 11, cabinet: 'Truck cooling failed for 2.5 h' }),
+    mk('b03', 'quoz', 'labneh-200',   'LB2611-3', 40,  96, 40, { chillerT: 4.8, probe: 5 }),
+    mk('b04', 'quoz', 'juice-or-1l',  'OJ2611-2', 24,  72, 24, { chillerT: 6.5, probe: 6, cabinet: 'Chiller 3 ran 2 °C warm' }),
+    mk('b05', 'quoz', 'wrap-chk',     'W2611-1',  12,  24, 10, { chillerT: 5.5, probe: 5 }),
+    mk('b06', 'quoz', 'khubz-6',      'B2611-9',  60,  14,  6, { truckH: 2, bayMin: 15, chillerT: 27, logs: {} }),
+    mk('b07', 'quoz', 'cream-250',    'CR2610-4',  8, 300, 130, { chillerT: 4.5, probe: 4.5 }),
+    mk('b08', 'quoz', 'laban-1l',     'LB2611-7', 12,  60, 24, { probe: 5 }),
+    mk('b09', 'quoz', 'hummus-400',   'H2611-5',  22,  72, 30, { probe: 5 }),
+    mk('b10', 'quoz', 'fruit-cup',    'FC2611-2', 12,  40, 14, { bayMin: 50, chillerT: 6, probe: null, cabinet: 'Waited 50 min at the bay. No receiving probe reading.' }),
+    mk('b11', 'quoz', 'juice-mg-250', 'MG2611-6', 40,  48, 20, { chillerT: 5.5, probe: 5 }),
+    mk('b12', 'quoz', 'milk-2l',      'M2611-21', 24,  48, 20, { chillerT: 4.2, probe: 4.5 }),
+    mk('b13', 'quoz', 'juice-ap-330', 'AP2611-3',  8,  60, 26, { chillerT: 4.4, probe: 4.8 }),
+
+    // Al Marina and Khalidiya: they matter because they can take a transfer.
+    mk('m01', 'marina', 'labneh-200',  'LB2611-1', 6,  72, 30, { chillerT: 4.2 }),
+    mk('m02', 'marina', 'juice-or-1l', 'OJ2611-4', 8,  48, 20, { chillerT: 4.2 }),
+    mk('m03', 'marina', 'yog-500',     'L2611-A',  60, 96, 40, { chillerT: 4.2 }),
+    mk('m04', 'marina', 'wrap-chk',    'W2611-2',  10, 24, 10, { chillerT: 4.2 }),
+    mk('m05', 'marina', 'khubz-6',     'B2611-5',  18, 14,  6, { truckH: 2, chillerT: 26, logs: {} }),
+    mk('m06', 'marina', 'milk-1l',     'M2611-17', 20, 60, 24, { chillerT: 4.2 }),
+    mk('m07', 'marina', 'fruit-cup',   'FC2611-4', 6,  36, 12, { chillerT: 4.2 }),
+    mk('m08', 'marina', 'hummus-400',  'H2611-3',  12, 60, 24, { chillerT: 4.2 }),
+    mk('m09', 'marina', 'juice-mg-250', 'MG2611-3', 60, 48, 20, { chillerT: 4.2 }),
+
+    mk('k01', 'khal', 'juice-or-1l', 'OJ2611-5', 14, 48, 20, { chillerT: 5 }),
+    mk('k02', 'khal', 'laban-1l',    'LB2611-9', 12, 60, 24, { chillerT: 5 }),
+    mk('k03', 'khal', 'milk-1l',     'M2611-19', 16, 60, 24, { chillerT: 5 }),
+    mk('k04', 'khal', 'yog-500',     'L2611-C',  40, 96, 40, { chillerT: 5 }),
+    mk('k05', 'khal', 'labneh-200',  'LB2611-2', 8,  72, 30, { chillerT: 5 }),
+    mk('k06', 'khal', 'khubz-6',     'B2611-7',  10, 14,  6, { truckH: 2, chillerT: 26, logs: {} }),
+    mk('k07', 'khal', 'juice-mg-250', 'MG2611-8', 30, 48, 20, { chillerT: 5 })
+  ];
+
+  // GS1 check digit for a 12-digit body (so the demo GTINs are well formed).
+  function gtin(body12) {
+    var s = 0;
+    for (var i = 0; i < 12; i++) s += (+body12[i]) * (i % 2 === 0 ? 1 : 3);
+    return body12 + ((10 - (s % 10)) % 10);
+  }
+  var SKU_ORDER = Object.keys(SKUS);
+  SKU_ORDER.forEach(function (id, i) {
+    SKUS[id].gtin = gtin('629900' + String(100000 + i * 7).slice(0, 6));
+  });
+
+  // Last week's confirmed actions, for the impact ledger. SIMULATED history.
+  var HISTORY = [
+    { daysAgo: 6, store: 'quoz',   sku: 'khubz-6',      code: 'B2610-4',  action: 'donate',   units: 42, saved: 42 },
+    { daysAgo: 6, store: 'quoz',   sku: 'yog-500',      code: 'L2609-C',  action: 'move',     units: 16, saved: 14 },
+    { daysAgo: 5, store: 'marina', sku: 'juice-mg-250', code: 'MG2610-2', action: 'markdown', units: 22, saved: 19, depth: 0.2 },
+    { daysAgo: 4, store: 'quoz',   sku: 'labneh-200',   code: 'LB2609-8', action: 'move',     units: 24, saved: 24 },
+    { daysAgo: 4, store: 'khal',   sku: 'milk-1l',      code: 'M2610-6',  action: 'hold',     units: 30, saved: 0 },
+    { daysAgo: 3, store: 'quoz',   sku: 'fruit-cup',    code: 'FC2610-1', action: 'markdown', units: 12, saved: 9,  depth: 0.3 },
+    { daysAgo: 2, store: 'marina', sku: 'khubz-6',      code: 'B2610-8',  action: 'donate',   units: 36, saved: 31 },
+    { daysAgo: 2, store: 'quoz',   sku: 'juice-or-1l',  code: 'OJ2610-3', action: 'move',     units: 14, saved: 12 },
+    { daysAgo: 1, store: 'khal',   sku: 'wrap-chk',     code: 'W2610-2',  action: 'markdown', units: 8,  saved: 6,  depth: 0.4 }
+  ];
+
+  var REASONS = [
+    { id: 'truck',   en: 'No space on the truck' },
+    { id: 'sold',    en: 'Already sold or gone' },
+    { id: 'staff',   en: 'No staff available now' },
+    { id: 'other',   en: 'Another reason' }
+  ];
+
+  return { SKUS: SKUS, STORES: STORES, TRANSIT: TRANSIT, VELOCITIES: VELOCITIES, BATCHES: BATCHES, HISTORY: HISTORY, REASONS: REASONS };
+});
+
+</script>
+<script>
+(function () {
+'use strict';
+/* ShelfTwin prototype UI, part A: helpers, state, plan, task actions, chat language data.
+   Vanilla JS. Everything shown is SIMULATED; see the "Real vs simulated" tab. */
+const E = window.ShelfTwin, D = window.ShelfTwinData;
+const SKUS = D.SKUS, STORES = D.STORES, BATCHES = D.BATCHES;
+const fmt = E.fmtD;
+const DEMO = Date.UTC(2026, 10, 16); // the demo morning (simulated date)
+
+const $ = (s, el) => (el || document).querySelector(s);
+const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
+const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
+const ic = (id, cls) => '<svg class="ic' + (cls ? ' ' + cls : '') + '" aria-hidden="true"><use href="#' + id + '"/></svg>';
+const num = (n, d) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+const aed = (n) => 'AED ' + num(n);
+const hrs = (h) => (h < 1 ? Math.round(h * 60) + ' min' : h < 10 ? fmt(h) + ' h' : Math.round(h) + ' h');
+const storeOf = (id) => STORES.find((s) => s.id === id);
+const batchOf = (id) => BATCHES.find((b) => b.id === id);
+const say = (msg) => { const l = $('#live'); if (!l) return; l.textContent = ''; setTimeout(() => { l.textContent = msg; }, 30); };
+const isoDay = (daysAgo) => new Date(DEMO - daysAgo * 86400000).toISOString().slice(0, 10);
+
+// ------------------------------------------------------------------ state
+const state = {
+  tab: 'today', store: 'quoz', calendar: 'normal',
+  tasks: {},       // batchId -> { status, excluded[], trail[], asking, snapshot }
+  overrides: {},   // batchId -> what-if inputs from the twin sliders
+  log: [],         // ledger entries created by Done taps today
+  twinId: 'b01', lang: 'en', flash: null, tryOpen: true, banner: null,
+  chatIds: {}      // store+calendar -> the three batch ids the chat walks through (kept stable)
+};
+
+const ACT = {
+  remove:   { label: 'Remove',    icon: 'i-stop',  chip: 'chip-remove',   done: 'Removed from shelf' },
+  hold:     { label: 'QA hold',   icon: 'i-pause', chip: 'chip-hold',     done: 'Held, QA called' },
+  move:     { label: 'Move',      icon: 'i-arrow', chip: 'chip-move',     done: 'Done' },
+  markdown: { label: 'Mark down', icon: 'i-tag',   chip: 'chip-markdown', done: 'Done' },
+  donate:   { label: 'Donate',    icon: 'i-heart', chip: 'chip-donate',   done: 'Done' },
+  reorder:  { label: 'Reorder',   icon: 'i-cart',  chip: 'chip-reorder',  done: 'Ordered' },
+  ok:       { label: 'No action', icon: 'i-ok',    chip: 'chip-ok',       done: 'Done' }
+};
+const ORDER = { remove: 0, hold: 1, move: 2, markdown: 3, donate: 4, reorder: 5, ok: 6 };
+const CANT = { move: 1, markdown: 1, donate: 1 };
+const PAST = { move: 'Moving', markdown: 'Marking down', donate: 'Donating' };
+const REASON_TEXT = {};
+D.REASONS.forEach((r) => { REASON_TEXT[r.id] = r.en; });
+const CONFIRM = { move: 0.9, markdown: 0.85, donate: 1 }; // simulated confirmation rates
+
+// ------------------------------------------------------------------- plan
+const ctx = () => E.makeCtx({ calendar: state.calendar, stores: STORES, batches: BATCHES, velocities: D.VELOCITIES, transit: D.TRANSIT });
+
+function plan(storeId) {
+  const rows = E.planStore(ctx(), SKUS, storeId, state.overrides, state.tasks);
+  rows.forEach((r) => {
+    const t = state.tasks[r.batch.id];
+    r.task = t || null;
+    r.done = !!(t && t.status === 'done' && t.snapshot);
+    if (r.done) { r.live = r.decision; r.decision = t.snapshot; }
+  });
+  rows.sort((x, y) => (ORDER[x.decision.action] - ORDER[y.decision.action]) || (y.decision.risk.aed - x.decision.risk.aed));
+  return rows;
+}
+const findRow = (id) => plan(batchOf(id).store).filter((r) => r.batch.id === id)[0];
+
+function task(id) {
+  if (!state.tasks[id]) state.tasks[id] = { status: 'open', excluded: [], trail: [], asking: false, snapshot: null };
+  return state.tasks[id];
+}
+
+function doneTask(id) {
+  const r = findRow(id);
+  if (!r || r.done) return;
+  const t = task(id), d = r.decision;
+  t.status = 'done'; t.asking = false; t.snapshot = d;
+  state.log.push({
+    batchId: id, store: r.batch.store, skuId: r.sku.id, code: r.batch.code, action: d.action,
+    units: d.units, depth: (d.detail && d.detail.depth) || 0, status: 'done', saved: null
+  });
+  say(ACT[d.action].done + ': ' + r.sku.name + '. Counts only when confirmed.');
+}
+function undoTask(id) {
+  const t = state.tasks[id];
+  if (!t || t.status !== 'done') return;
+  const i = state.log.findIndex((e) => e.batchId === id && e.status === 'done');
+  if (i < 0) return; // already confirmed: it stays in the ledger
+  state.log.splice(i, 1);
+  t.status = 'open'; t.snapshot = null;
+}
+function askCant(id) { task(id).asking = true; }
+function cancelCant(id) { task(id).asking = false; }
+function cantReason(id, reasonId) {
+  const r = findRow(id);
+  if (!r || r.done) return;
+  const t = task(id);
+  t.trail.push({ decision: r.decision, reason: reasonId });
+  t.excluded.push(r.decision.action);
+  t.asking = false;
+  state.flash = id;
+  say('Re-planned ' + r.sku.name + '.');
+}
+function closeDay() {
+  let n = 0;
+  state.log.forEach((e) => {
+    if (e.status !== 'done') return;
+    e.status = 'confirmed';
+    e.saved = CONFIRM[e.action] ? Math.round(e.units * CONFIRM[e.action]) : 0;
+    n++;
+  });
+  state.banner = n
+    ? n + (n === 1 ? ' action' : ' actions') + ' confirmed. This is a simulated confirmation: in a pilot it comes from POS sales and donation receipts.'
+    : 'Nothing to confirm yet. Tap Done on a few actions first.';
+  return n;
+}
+function resetDemo() {
+  state.tasks = {}; state.overrides = {}; state.log = []; state.banner = null; state.flash = null; state.chatIds = {};
+}
+
+// -------------------------------------------------------------- range bar
+// The right edge is always the printed date. The blue band is the real shelf life range.
+function rbar(tw, big) {
+  const P = tw.printedRemaining, cls = 'rbar' + (big ? ' big' : '');
+  if (P <= 0) {
+    return '<div class="' + cls + '" role="img" aria-label="Past the printed date"><div class="rbar-track"></div><div class="rbar-tick" style="left:0;right:auto"></div></div>';
+  }
+  const pc = (x) => Math.max(0, Math.min(100, x / P * 100));
+  const lo = pc(tw.low), hi = pc(tw.high), mid = pc(tw.mid);
+  return '<div class="' + cls + '" role="img" aria-label="Real shelf life ' + fmt(tw.low) + ' to ' + fmt(tw.high) + ' days. Printed date in ' + fmt(P) + ' days.">' +
+    '<div class="rbar-track"></div>' +
+    '<div class="rbar-band" style="left:' + lo.toFixed(2) + '%;width:' + Math.max(hi - lo, 0).toFixed(2) + '%"></div>' +
+    '<div class="rbar-mark" style="left:' + mid.toFixed(2) + '%"></div>' +
+    '<div class="rbar-tick"></div></div>';
+}
+
+// ------------------------------------------------- chat language data
+// DRAFT translations. They need review by native speakers before any real use.
+const NAMES = {
+  ar: {
+    'milk-1l': 'حليب طازج 1 لتر', 'milk-2l': 'حليب طازج 2 لتر', 'cream-250': 'كريمة طازجة 250 مل', 'laban-1l': 'لبن 1 لتر',
+    'yog-500': 'زبادي يوناني 500 غ', 'labneh-200': 'لبنة 200 غ', 'hummus-400': 'حمص 400 غ', 'juice-or-1l': 'عصير برتقال طازج 1 لتر',
+    'juice-mg-250': 'عصير مانجو 250 مل', 'juice-ap-330': 'عصير تفاح 330 مل', 'wrap-chk': 'ساندويتش شاورما دجاج',
+    'fruit-cup': 'كوب فواكه طازجة 250 غ', 'khubz-6': 'خبز عربي 6 حبات'
+  },
+  hi: {
+    'milk-1l': 'ताज़ा दूध 1 लीटर', 'milk-2l': 'ताज़ा दूध 2 लीटर', 'cream-250': 'ताज़ा क्रीम 250 मि.ली.', 'laban-1l': 'लबन 1 लीटर',
+    'yog-500': 'ग्रीक योगर्ट 500 ग्राम', 'labneh-200': 'लबनेह 200 ग्राम', 'hummus-400': 'हम्मस 400 ग्राम', 'juice-or-1l': 'ताज़ा संतरे का जूस 1 लीटर',
+    'juice-mg-250': 'आम का जूस 250 मि.ली.', 'juice-ap-330': 'सेब का जूस 330 मि.ली.', 'wrap-chk': 'चिकन शावरमा रैप',
+    'fruit-cup': 'ताज़ा फलों का कप 250 ग्राम', 'khubz-6': 'अरबी रोटी, 6 पीस'
+  }
+};
+const STORE_NAMES = {
+  en: { quoz: 'Demo Market, Al Quoz', marina: 'Demo Market, Marina', khal: 'Demo Market, Khalidiya' },
+  ar: { quoz: 'ديمو ماركت، القوز', marina: 'ديمو ماركت، المارينا', khal: 'ديمو ماركت، الخالدية' },
+  hi: { quoz: 'डेमो मार्केट, अल क़ूज़', marina: 'डेमो मार्केट, मरीना', khal: 'डेमो मार्केट, ख़ालिदिया' }
+};
+const MONTHS = {
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  ar: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'],
+  hi: ['जनवरी', 'फ़रवरी', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर', 'नवंबर', 'दिसंबर']
+};
+const pname = (lang, sku) => (lang === 'en' ? sku.name : NAMES[lang][sku.id]);
+const sname = (lang, id) => STORE_NAMES[lang][id];
+function dateText(lang, dayOffset) {
+  const d = new Date(DEMO + Math.round(dayOffset) * 86400000);
+  return d.getUTCDate() + ' ' + MONTHS[lang][d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+}
+function arUnits(n) {
+  if (n === 1) return 'وحدة واحدة';
+  if (n === 2) return 'وحدتان';
+  return n + (n >= 3 && n <= 10 ? ' وحدات' : ' وحدة');
+}
+function unitsPhrase(lang, n, name) {
+  if (lang === 'ar') return arUnits(n) + ' من ' + name;
+  if (lang === 'hi') return name + ' की ' + n + (n === 1 ? ' इकाई' : ' इकाइयाँ');
+  return n + (n === 1 ? ' unit' : ' units') + ' of ' + name;
+}
+const bdi = (s) => '<bdi>' + esc(s) + '</bdi>';
+
+const T = {
+  en: {
+    dir: 'ltr', lang: 'en', label: 'English',
+    assistant: 'ShelfTwin assistant', sub: 'Demo chat. No real messaging service.',
+    atReceiving: 'At receiving', nextMorning: 'Next morning, 07:30',
+    photoCap: 'Label photo (illustration)', heardLbl: 'Heard',
+    heard: '“Thirty-six Greek yogurt. Batch L, two six one one, B.”',
+    readIntro: 'I read this. Please check:',
+    f: { product: 'Product', batch: 'Batch', bb: 'Best before', qty: 'Quantity' },
+    yes: 'Yes, correct', fix: 'Fix',
+    saved: (n, name, code) => 'Saved. ' + unitsPhrase('en', n, name) + ', batch ' + bdi(code) + '. It is checked every morning.',
+    hello: (n, store) => 'Good morning. ' + n + (n === 1 ? ' thing' : ' things') + ' to do at ' + store + ' today.',
+    taskNo: (i, n) => 'Task ' + i + ' of ' + n,
+    done: 'Done', cant: 'Can’t do', doneOut: 'Done ✓', thanks: 'Thanks. Logged.',
+    why: 'What got in the way?', newPlan: 'OK. New plan:',
+    none: 'No safe option is left. A person will decide.',
+    reasons: { truck: 'No space on the truck', sold: 'Already sold or gone', staff: 'No staff available now', other: 'Another reason' },
+    real: (lo, hi, pr) => 'Real shelf life: <bdi>' + lo + '–' + hi + '</bdi> days. Printed: <bdi>' + pr + '</bdi> days.',
+    act: {
+      remove: (p) => 'Take ' + p.u + ' (' + p.code + ') off the shelf now. The date has passed.',
+      hold: (p) => 'Do not sell ' + p.u + ' (' + p.code + '). Keep it chilled, tag it and call QA.',
+      move: (p) => 'Send ' + p.u + ' (' + p.code + ') to ' + p.dest + ' on the next truck.',
+      markdown: (p) => 'Mark down ' + p.u + ' (' + p.code + ') by ' + p.pct + '%.',
+      donate: (p) => 'Set aside ' + p.u + ' (' + p.code + ') for the donation partner.',
+      reorder: (p) => 'Order ' + p.u + '. Stock runs out in about ' + p.hours + ' h.',
+      ok: (p) => p.u + ' (' + p.code + '): nothing to do.'
+    }
+  },
+  ar: {
+    dir: 'rtl', lang: 'ar', label: 'العربية',
+    assistant: 'مساعد ShelfTwin', sub: 'محادثة تجريبية. لا توجد خدمة مراسلة حقيقية.',
+    atReceiving: 'عند الاستلام', nextMorning: 'صباح اليوم التالي، 07:30',
+    photoCap: 'صورة الملصق (توضيحية)', heardLbl: 'ما سُمع',
+    heard: '«ستة وثلاثون زبادي يوناني. التشغيلة L2611B.»',
+    readIntro: 'قرأتُ هذا. يرجى التحقق:',
+    f: { product: 'المنتج', batch: 'التشغيلة', bb: 'يُفضَّل قبل', qty: 'الكمية' },
+    yes: 'نعم، صحيح', fix: 'تعديل',
+    saved: (n, name, code) => 'تم الحفظ. ' + unitsPhrase('ar', n, name) + '، التشغيلة ' + bdi(code) + '. تتم متابعتها كل صباح.',
+    hello: (n, store) => 'صباح الخير. ' + (n === 1 ? 'لديك مهمة واحدة' : n === 2 ? 'لديك مهمتان' : 'لديك ' + n + ' مهام') + ' اليوم في ' + store + '.',
+    taskNo: (i, n) => 'المهمة ' + i + ' من ' + n,
+    done: 'تم', cant: 'لا أستطيع', doneOut: 'تم ✓', thanks: 'شكراً. تم التسجيل.',
+    why: 'ما الذي منعك؟', newPlan: 'حسناً. الخطة الجديدة:',
+    none: 'لم يبقَ خيار آمن. سيقرّر شخص مسؤول.',
+    reasons: { truck: 'لا توجد مساحة في الشاحنة', sold: 'بِيع بالفعل أو لم يعد موجوداً', staff: 'لا يوجد موظفون الآن', other: 'سبب آخر' },
+    real: (lo, hi, pr) => 'الصلاحية الفعلية: <bdi>' + lo + '–' + hi + '</bdi> يوم. المطبوع: <bdi>' + pr + '</bdi> يوم.',
+    act: {
+      remove: (p) => 'أزل ' + p.u + ' (' + p.code + ') من الرف الآن. انتهى تاريخ الصلاحية.',
+      hold: (p) => 'لا تبع ' + p.u + ' (' + p.code + '). أبقِها مبرّدة، وضع عليها بطاقة، واتصل بقسم الجودة.',
+      move: (p) => 'أرسل ' + p.u + ' (' + p.code + ') إلى ' + p.dest + ' مع الشاحنة التالية.',
+      markdown: (p) => 'خفّض سعر ' + p.u + ' (' + p.code + ') بنسبة <bdi>' + p.pct + '%</bdi>.',
+      donate: (p) => 'خصّص ' + p.u + ' (' + p.code + ') لشريك التبرعات.',
+      reorder: (p) => 'اطلب ' + p.u + '. سينفد المخزون خلال نحو ' + p.hours + ' ساعة.',
+      ok: (p) => p.u + ' (' + p.code + '): لا يلزم أي إجراء.'
+    }
+  },
+  hi: {
+    dir: 'ltr', lang: 'hi', label: 'हिन्दी',
+    assistant: 'ShelfTwin सहायक', sub: 'डेमो चैट। असली मैसेजिंग सेवा नहीं।',
+    atReceiving: 'माल लेते समय', nextMorning: 'अगली सुबह, 07:30',
+    photoCap: 'लेबल की फ़ोटो (चित्रण)', heardLbl: 'सुना गया',
+    heard: '“छत्तीस ग्रीक योगर्ट। बैच L2611B।”',
+    readIntro: 'मैंने यह पढ़ा। कृपया जाँच लें:',
+    f: { product: 'उत्पाद', batch: 'बैच', bb: 'बेस्ट बिफ़ोर', qty: 'मात्रा' },
+    yes: 'हाँ, सही है', fix: 'बदलें',
+    saved: (n, name, code) => 'सहेज लिया। ' + unitsPhrase('hi', n, name) + ', बैच ' + bdi(code) + '। हर सुबह इसकी जाँच होगी।',
+    hello: (n, store) => 'सुप्रभात। आज ' + store + ' में ' + n + ' काम हैं।',
+    taskNo: (i, n) => 'काम ' + i + ' / ' + n,
+    done: 'हो गया', cant: 'नहीं कर सकता', doneOut: 'हो गया ✓', thanks: 'धन्यवाद। दर्ज हो गया।',
+    why: 'क्या रुकावट आई?', newPlan: 'ठीक है। नई योजना:',
+    none: 'कोई सुरक्षित विकल्प नहीं बचा। कोई ज़िम्मेदार व्यक्ति तय करेगा।',
+    reasons: { truck: 'ट्रक में जगह नहीं', sold: 'पहले ही बिक गया या नहीं है', staff: 'अभी स्टाफ़ उपलब्ध नहीं', other: 'कोई और कारण' },
+    real: (lo, hi, pr) => 'असली शेल्फ़ लाइफ़: <bdi>' + lo + '–' + hi + '</bdi> दिन। छपी तारीख़ के अनुसार: <bdi>' + pr + '</bdi> दिन।',
+    act: {
+      remove: (p) => p.u + ' (' + p.code + ') अभी शेल्फ़ से हटाएँ। तारीख़ निकल चुकी है।',
+      hold: (p) => p.u + ' (' + p.code + ') न बेचें। इन्हें ठंडा रखें, टैग लगाएँ और QA को बुलाएँ।',
+      move: (p) => p.u + ' (' + p.code + ') अगले ट्रक से ' + p.dest + ' भेजें।',
+      markdown: (p) => p.u + ' (' + p.code + ') पर ' + p.pct + '% की छूट लगाएँ।',
+      donate: (p) => p.u + ' (' + p.code + ') दान साझेदार के लिए अलग रखें।',
+      reorder: (p) => p.u + ' मँगवाएँ। स्टॉक लगभग ' + p.hours + ' घंटे में ख़त्म हो जाएगा।',
+      ok: (p) => p.u + ' (' + p.code + '): कुछ करने की ज़रूरत नहीं।'
+    }
+  }
+};
+
+// One task, in one language, as HTML. The English version also feeds the morning list.
+function taskText(lang, r, dec) {
+  const d = dec || r.decision, a = d.action, b = r.batch, t = T[lang];
+  const n = a === 'reorder' ? d.units : a === 'remove' || a === 'hold' ? b.qty : d.units || b.qty;
+  const p = {
+    u: esc(unitsPhrase(lang, n, pname(lang, r.sku))),
+    code: bdi(b.code),
+    dest: a === 'move' ? esc(sname(lang, d.detail.destId)) : '',
+    pct: a === 'markdown' ? Math.round(d.detail.depth * 100) : 0,
+    hours: a === 'reorder' ? d.detail.hoursLeft : 0
+  };
+  return t.act[a](p);
+}
+
+/* ShelfTwin prototype UI, part B: the morning list and the batch twin. */
+
+const CAL_ORDER = ['normal', 'ramadan', 'eid', 'national'];
+const CONF = { high: 'High', medium: 'Medium', low: 'Low' };
+const SRC = { logger: 'data logger', assumed: 'assumed setpoint', weather: 'outdoor weather' };
+
+// ------------------------------------------------------------ morning list
+function stakeText(r) {
+  const d = r.decision, a = d.action;
+  if (a === 'ok') return '';
+  if (a === 'reorder') return 'Stock-out risk: about ' + d.detail.hoursLeft + ' h of cover at today’s pace.';
+  let s = 'At stake: ' + d.risk.units + ' ' + (d.risk.units === 1 ? 'unit' : 'units') + ' · ' + num(d.risk.kg, 1) + ' kg · ' + aed(d.risk.aed) + ' at cost.';
+  if (a === 'move' && d.units < d.risk.units) s += ' The move covers ' + d.units + ' of them.';
+  return s;
+}
+
+function rowCard(r) {
+  const b = r.batch, tw = r.twin, d = r.decision, a = d.action, m = ACT[a], t = r.task || {};
+  const expired = tw.printedRemaining <= 0;
+  const trail = t.trail && t.trail.length ? t.trail[t.trail.length - 1] : null;
+  let h = '<article class="row a-' + a + (state.flash === b.id ? ' is-new' : '') + '" data-row="' + b.id + '" tabindex="-1">';
+  h += '<div class="row-head"><span class="chip ' + m.chip + '">' + ic(m.icon) + m.label + '</span>' +
+    '<div class="row-title"><h3>' + esc(r.sku.name) + '</h3><div class="meta"><span class="mono">' + esc(b.code) + '</span> · ' + b.qty +
+    ' units · in store ' + hrs(b.deliveredAgoH) + (state.overrides[b.id] ? ' · <span class="tag">What-if</span>' : '') + '</div></div></div>';
+  h += rbar(tw);
+  h += '<div class="nums"><span>' + (expired ? 'Printed date <b>passed</b>' : 'Printed <b>' + fmt(tw.printedRemaining) + ' d</b>') + '</span>' +
+    '<span>Real <b>' + (expired ? '0 d' : fmt(tw.low) + '–' + fmt(tw.high) + ' d') + '</b></span>' +
+    '<span>Confidence <b>' + CONF[tw.confidence] + '</b></span></div>';
+  h += '<p class="row-do">' + taskText('en', r) + '</p>';
+  const stake = stakeText(r);
+  if (stake) h += '<p class="row-stake">' + esc(stake) + '</p>';
+  if (b.cabinet) h += '<p class="row-stake">Logged: ' + esc(b.cabinet.replace(/\.$/, '')) + '.</p>';
+  if (trail) {
+    h += '<p class="row-note">Re-planned. ' + esc(PAST[trail.decision.action] || ACT[trail.decision.action].label) + ' was not possible (' +
+      esc(REASON_TEXT[trail.reason].toLowerCase()) + ').</p>';
+  }
+  if (a === 'markdown' && d.detail.clears === false) {
+    h += '<p class="row-note">Best effort: even ' + Math.round(d.detail.depth * 100) + '% may leave about ' + d.detail.leftover + ' units.</p>';
+  }
+  if (t.asking) {
+    h += '<div class="reasons" role="group" aria-label="Why can’t you do it?"><span class="lbl">What got in the way?</span><div class="row-actions">' +
+      D.REASONS.map((x) => '<button type="button" class="btn btn-ghost btn-sm" data-act="reason" data-id="' + b.id + '" data-reason="' + x.id + '">' + esc(x.en) + '</button>').join('') +
+      '<button type="button" class="btn btn-quiet btn-sm" data-act="cant-cancel" data-id="' + b.id + '">Cancel</button></div></div>';
+  } else {
+    h += '<div class="row-actions"><button type="button" class="btn btn-primary btn-sm" data-act="done" data-id="' + b.id + '" data-key="done-' + b.id + '">' + ic('i-check') + esc(m.done) + '</button>' +
+      (CANT[a] ? '<button type="button" class="btn btn-ghost btn-sm" data-act="cant" data-id="' + b.id + '" data-key="cant-' + b.id + '">' + ic('i-x') + 'Can’t do</button>' : '') +
+      '<button type="button" class="btn btn-quiet btn-sm" data-act="open-twin" data-id="' + b.id + '">Open twin</button></div>';
+  }
+  h += '<details class="why-d"><summary>Why this action</summary><ul class="why">' + d.reasons.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul></details>';
+  return h + '</article>';
+}
+
+function doneCard(r) {
+  const b = r.batch, d = r.decision, m = ACT[d.action];
+  const e = state.log.filter((x) => x.batchId === b.id)[0];
+  const counts = d.action === 'move' || d.action === 'markdown' || d.action === 'donate';
+  let note;
+  if (e && e.status === 'confirmed') {
+    note = counts ? 'Confirmed (simulated): ' + e.saved + ' of ' + e.units + ' units saved.' : 'Logged for the audit trail. Never counted as savings.';
+  } else {
+    note = counts ? 'Done. Counts toward savings only once the outcome is confirmed.' : 'Done. Logged for the audit trail. Never counted as savings.';
+  }
+  return '<article class="row compact is-done" data-row="' + b.id + '" tabindex="-1"><div class="row-head"><span class="chip ' + m.chip + '">' + ic(m.icon) + m.label + '</span>' +
+    '<div class="row-title"><h3>' + esc(r.sku.name) + ' · ' + (d.units || b.qty) + ' units</h3><div class="meta">' + esc(note) + '</div></div>' +
+    (e && e.status === 'done' ? '<button type="button" class="btn btn-quiet btn-sm" data-act="undo" data-id="' + b.id + '" data-key="undo-' + b.id + '">' + ic('i-undo') + 'Undo</button>' : ic('i-check', 'done-mark')) +
+    '</div></article>';
+}
+
+function okCard(r) {
+  const b = r.batch, tw = r.twin, s = r.decision.stats;
+  return '<article class="row compact" data-row="' + b.id + '" tabindex="-1"><div class="row-head"><span class="chip chip-ok">' + ic('i-ok') + 'No action</span>' +
+    '<div class="row-title"><h3>' + esc(r.sku.name) + ' · ' + b.qty + ' units</h3><div class="meta"><span class="mono">' + esc(b.code) + '</span> · real ' + fmt(tw.low) + '–' + fmt(tw.high) +
+    ' d, printed ' + fmt(tw.printedRemaining) + ' d · sells in about ' + fmt(s.daysToSell) + ' d</div></div>' +
+    '<button type="button" class="btn btn-quiet btn-sm" data-act="open-twin" data-id="' + b.id + '">Open twin</button></div>' + rbar(tw) + '</article>';
+}
+
+function renderToday() {
+  const el = $('#view-today');
+  const rows = plan(state.store);
+  const todo = rows.filter((r) => !r.done && r.decision.action !== 'ok');
+  const done = rows.filter((r) => r.done);
+  const oks = rows.filter((r) => !r.done && r.decision.action === 'ok');
+  const riskUnits = todo.reduce((s, r) => s + r.decision.risk.units, 0);
+  const riskAed = todo.reduce((s, r) => s + r.decision.risk.aed, 0);
+  const pending = state.log.filter((e) => e.status === 'done').length;
+  const cal = E.CALENDARS[state.calendar];
+
+  let h = '<div class="bar">' +
+    '<label class="field"><span>Store</span><select id="sel-store" aria-label="Store">' +
+    STORES.map((s) => '<option value="' + s.id + '"' + (s.id === state.store ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') + '</select></label>' +
+    '<div class="field"><span>Gulf calendar (what-if)</span><div class="seg" role="group" aria-label="Gulf calendar">' +
+    CAL_ORDER.map((k) => '<button type="button" data-act="cal" data-cal="' + k + '" aria-pressed="' + (state.calendar === k) + '">' + esc(E.CALENDARS[k].label) + '</button>').join('') + '</div></div>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-act="reset" style="margin-left:auto">' + ic('i-undo') + 'Reset demo</button></div>';
+
+  h += '<div class="sum">' +
+    '<div class="stat"><b>' + rows.length + '</b><span>batches checked at ' + esc(storeOf(state.store).short) + '</span></div>' +
+    '<div class="stat"><b>' + todo.length + '</b><span>' + (todo.length === 1 ? 'action' : 'actions') + ' for this morning</span></div>' +
+    '<div class="stat"><b>' + riskUnits + '</b><span>units at risk</span></div>' +
+    '<div class="stat"><b>' + aed(riskAed) + '</b><span>stock cost at risk (at cost price)</span></div></div>';
+  if (state.calendar !== 'normal') {
+    h += '<p class="small muted">Calendar: <b>' + esc(cal.label) + '</b>. Demand multipliers are illustrative; the product learns them from sales data.</p>';
+  }
+
+  h += '<details class="try" id="try"' + (state.tryOpen ? ' open' : '') + '><summary>Try it in a minute</summary><ol>' +
+    '<li><span>See why the Greek yogurt at Al Quoz has a printed 16 days but a real 8 to 12. Its chiller drifted warm.</span><button type="button" class="btn btn-ghost btn-sm" data-act="open-twin" data-id="b01">Open the twin</button></li>' +
+    '<li><span>Switch the calendar to Ramadan evenings. Demand jumps, so some moves and markdowns turn into reorders.</span><button type="button" class="btn btn-ghost btn-sm" data-act="cal" data-cal="ramadan">Set Ramadan</button></li>' +
+    '<li><span>On the orange juice row tap Can’t do and pick a reason. The plan changes on the spot.</span></li>' +
+    '<li><span>Tap Done on two or three rows, then close the day to see what counts as saved.</span><button type="button" class="btn btn-ghost btn-sm" data-act="tab" data-tab="impact">Open the ledger</button></li>' +
+    '</ol></details>';
+
+  h += '<div class="legend" aria-label="How to read the bars"><span><i class="lg-band"></i>Real shelf life range</span><span><i class="lg-mark"></i>Central estimate</span><span><i class="lg-tick"></i>Printed date (right edge)</span></div>';
+
+  h += '<h2 class="sec-h">To do <span class="count">' + todo.length + '</span></h2>';
+  h += todo.length ? '<div class="list">' + todo.map(rowCard).join('') + '</div>' : '<p class="lead">Nothing left to do at this store. Everything else is fine.</p>';
+
+  h += '<div class="card"><div class="row-head"><div class="row-title"><h3>Close the day</h3><p class="small muted">Simulates the evening confirmation. In a pilot it comes from POS sales and donation receipts. Until then nothing counts as saved.</p></div></div>' +
+    '<div class="row-actions"><button type="button" class="btn btn-primary" data-act="close-day"' + (pending ? '' : ' disabled') + '>Close the day and confirm ' + pending + (pending === 1 ? ' action' : ' actions') + '</button>' +
+    '<button type="button" class="btn btn-quiet" data-act="tab" data-tab="impact">Open the ledger</button></div></div>';
+
+  if (done.length) h += '<h2 class="sec-h">Done today <span class="count">' + done.length + '</span></h2><div class="list">' + done.map(doneCard).join('') + '</div>';
+  if (oks.length) h += '<h2 class="sec-h">No action needed <span class="count">' + oks.length + '</span></h2><div class="list">' + oks.map(okCard).join('') + '</div>';
+
+  el.innerHTML = h;
+  if (state.flash) {
+    const f = state.flash;
+    state.flash = null;
+    setTimeout(() => { const row = $('[data-row="' + f + '"]'); if (row) row.classList.remove('is-new'); }, 2600);
+  }
+}
+
+// -------------------------------------------------------------- batch twin
+const SCENARIOS = [
+  ['b01', 'Yogurt: chiller drift'],
+  ['b02', 'Milk: cooling failure'],
+  ['b10', 'Fruit cup: no probe'],
+  ['b06', 'Bread: no cold chain']
+];
+const LEG_NAMES = { factory: ['Producer', 'Prod.'], dc: ['Distributor', 'DC'], truck: ['Truck'], fail: ['Cooling off', 'Off'], bay: ['Bay'], store: [null] };
+
+function fmtVal(v, unit) {
+  if (unit === '°C') return (+v).toFixed(1) + ' °C';
+  if (unit === 'min') return Math.round(v) + ' min';
+  return (+(+v).toFixed(2)) + ' h';
+}
+
+function renderTwin() {
+  const el = $('#view-twin');
+  if (!el.dataset.ready) {
+    el.dataset.ready = '1';
+    el.innerHTML =
+      '<p class="lead">Pick a batch. The twin replays its journey from producer to shelf: heat moves into the pack, and the warmer it gets the faster shelf life is used. Drag a slider and the range moves. The morning list uses the same numbers.</p>' +
+      '<div class="bar"><label class="field"><span>Batch</span><select id="tw-pick" aria-label="Batch"></select></label>' +
+      '<div class="field"><span>Scenarios</span><div class="seg" role="group" aria-label="Scenarios" id="tw-scen"></div></div>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-act="tw-reset" id="tw-reset" style="margin-left:auto">' + ic('i-undo') + 'Reset what-ifs</button></div>' +
+      '<div class="live-wrap"><div class="live-bar" id="live-bar" aria-hidden="true"></div></div>' +
+      '<div class="twin-grid"><div class="col"><section class="card readout" id="tw-readout"></section><section class="card" id="tw-controls"></section></div>' +
+      '<div class="col"><section class="card" id="tw-chartcard"><h3>Core temperature along the journey</h3><div class="chart-wrap" id="tw-chart"></div>' +
+      '<div class="chart-legend" id="tw-legend"></div><p class="hint">Time runs left to right, from production to now. Legs are stretched so short ones stay visible; each leg’s duration sits under the axis.</p></section>' +
+      '<section class="card" id="tw-bridge"></section></div></div>' +
+      '<div class="two"><section class="card"><h3>Safety rules the twin cannot break</h3><ul class="rails">' +
+      '<li>' + ic('i-shield') + '<span><b>Never extends a printed date.</b> The real shelf life is capped at the printed date. It can only be shorter.</span></li>' +
+      '<li>' + ic('i-shield') + '<span><b>Stops at expiry.</b> After the printed date a batch leaves the shelf. No exceptions.</span></li>' +
+      '<li>' + ic('i-shield') + '<span><b>Uncertain goes to a person.</b> A wide range or a QA-limit breach becomes a hold. The twin never clears a hold by itself.</span></li>' +
+      '<li>' + ic('i-shield') + '<span><b>Everything is logged.</b> Inputs, assumptions, model settings and the reason for each decision are kept as an audit trail.</span></li></ul></section>' +
+      '<div class="col" id="tw-folds"></div></div>';
+    const pick = $('#tw-pick');
+    pick.innerHTML = STORES.map((s) => '<optgroup label="' + esc(s.name) + '">' +
+      BATCHES.filter((b) => b.store === s.id).map((b) => '<option value="' + b.id + '">' + esc(SKUS[b.sku].name) + ' · ' + esc(b.code) + '</option>').join('') + '</optgroup>').join('');
+  }
+  updateTwin(true);
+}
+
+function twinModel() {
+  const id = state.twinId, b = batchOf(id), sku = SKUS[b.sku], ov = state.overrides[id];
+  const tw = E.twin(b, sku, ov);
+  const excl = state.tasks[id] ? state.tasks[id].excluded : [];
+  const dec = E.decide(b, sku, tw, ctx(), excl);
+  return { id, b, sku, ov, tw, dec };
+}
+
+function updateTwin(full) {
+  const M = twinModel(), b = M.b, sku = M.sku, tw = M.tw, dec = M.dec, cat = tw.cat;
+  if (full) {
+    $('#tw-pick').value = state.twinId;
+    $('#tw-scen').innerHTML = SCENARIOS.map((s) => '<button type="button" data-act="scenario" data-id="' + s[0] + '" aria-pressed="' + (state.twinId === s[0]) + '">' + esc(s[1]) + '</button>').join('');
+    $('#tw-controls').innerHTML = controlsHTML(M);
+    $('#tw-legend').innerHTML = '<span><i class="lg-core"></i>Core of the pack</span><span><i class="lg-air"></i>Air around it</span><span><i class="lg-env"></i>Uncertainty range</span>' +
+      '<span><i class="lg-ref"></i>What the printed date assumes (' + cat.Tref + ' °C)</span>' + (cat.qaT != null ? '<span><i class="lg-qa"></i>Example QA limit (' + cat.qaT + ' °C for ' + cat.qaMin + ' min)</span>' : '');
+    $('#tw-folds').innerHTML = '<details class="fold"><summary>How the twin works <span class="badge b-illus">Illustrative numbers</span></summary><div class="fold-in" id="tw-math"></div></details>' +
+      '<details class="fold"><summary>Audit trail for this batch</summary><div class="fold-in"><p>What a QA reviewer would see for this batch: inputs, assumptions, model settings, result and reason.</p><pre class="audit" id="tw-audit" tabindex="0"></pre></div></details>' +
+      '<details class="fold"><summary>Chart data by leg</summary><div class="fold-in scroll-x" id="tw-table"></div></details>';
+  }
+  $('#tw-readout').innerHTML = readoutHTML(M);
+  $('#live-bar').innerHTML = '<span class="chip ' + ACT[dec.action].chip + '">' + ic(ACT[dec.action].icon) + ACT[dec.action].label + '</span><div class="lb-main"><div class="lb-num">' +
+    (tw.printedRemaining <= 0 ? 'Past the printed date' : 'Real ' + fmt(tw.low) + '–' + fmt(tw.high) + ' d') + '</div><div class="lb-sub">' + esc(sku.name) + ' · printed ' + (tw.printedRemaining <= 0 ? 'passed' : fmt(tw.printedRemaining) + ' d') + '</div>' + rbar(tw) + '</div>';
+  syncControls(M);
+  drawChart(M);
+  $('#tw-bridge').innerHTML = bridgeHTML(tw);
+  $('#tw-math').innerHTML = mathHTML(tw);
+  $('#tw-audit').textContent = auditText(b, sku, tw, dec);
+  $('#tw-table').innerHTML = tableHTML(tw);
+  $('#tw-reset').disabled = !state.overrides[state.twinId];
+  syncLiveBar();
+}
+
+// On a phone the readout scrolls away while you drag sliders, so a slim bar keeps the range in view.
+function syncLiveBar() {
+  const bar = $('#live-bar'), ro = $('#tw-readout');
+  if (!bar || !ro || state.tab !== 'twin') return;
+  bar.classList.toggle('show', ro.getBoundingClientRect().bottom < 110);
+}
+
+function readoutHTML(M) {
+  const tw = M.tw, dec = M.dec, m = ACT[dec.action], expired = tw.printedRemaining <= 0;
+  const big = expired ? '0.0' : tw.high - tw.low < 0.05 ? fmt(tw.mid) : fmt(tw.low) + '–' + fmt(tw.high);
+  return '<div class="eyebrow">Real shelf life left</div>' +
+    '<div class="big">' + big + '<small>days</small></div>' +
+    '<div class="conf"><span>Printed date: <b>' + (expired ? 'passed ' + fmt(-tw.printedRemaining) + ' d ago' : fmt(tw.printedRemaining) + ' d') + '</b></span> · <span>Confidence: <b>' + CONF[tw.confidence] + '</b></span></div>' +
+    rbar(tw, true) + '<div class="rbar-ends"><span>0 d</span><span>printed date</span></div>' +
+    '<div class="row-head"><span class="chip ' + m.chip + '">' + ic(m.icon) + m.label + '</span><p class="row-do">' + taskText('en', { batch: M.b, sku: M.sku }, dec) + '</p></div>' +
+    '<ul class="why">' + dec.reasons.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+    '<p class="hint">The range comes from ' + tw.cornerCount + ' corner cases of the uncertain inputs. The twin acts on the low end.</p>';
+}
+
+function controlsHTML(M) {
+  const b = M.b, tw = M.tw, cat = tw.cat, ov = M.ov;
+  const val = (k) => (ov && ov[k] !== undefined ? ov[k] : b[k]);
+  function slider(key, label, unit, min, max, step, disabled, note) {
+    return '<div class="ctl"><div class="ctl-top"><label for="c-' + key + '">' + label + '</label><output id="o-' + key + '" for="c-' + key + '"></output></div>' +
+      '<input type="range" id="c-' + key + '" data-ctl="' + key + '" data-unit="' + unit + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + val(key) + '"' + (disabled ? ' disabled' : '') + '>' +
+      '<span class="hint" id="h-' + key + '">' + (note || '') + '</span></div>';
+  }
+  const probeOn = val('probe') !== null && val('probe') !== undefined;
+  return '<h3>What happened to this batch</h3>' +
+    slider('chillerT', esc(cat.storeLabel) + ' temperature', '°C', cat.storeRange[0], cat.storeRange[1], 0.5, false) +
+    slider('failH', 'Truck cooling failure', 'h', 0, b.truckH, 0.25, !cat.cold) +
+    slider('bayMin', 'Wait at the receiving bay', 'min', 0, 120, 5, false) +
+    slider('outdoorC', 'Outdoor temperature at the bay', '°C', 20, 48, 1, false) +
+    '<div class="ctl"><div class="ctl-top"><span class="ctl-name">Receiving probe</span><output id="o-probe"></output></div>' +
+    '<label class="probe-line"><input type="checkbox" id="c-probe-on" data-ctl="probe-on"' + (probeOn ? ' checked' : '') + (cat.cold ? '' : ' disabled') + '><span>A core reading was taken on arrival</span></label>' +
+    '<input type="range" id="c-probe" data-ctl="probe" data-unit="°C" min="1" max="20" step="0.5" value="' + (probeOn ? val('probe') : 5) + '"' + (probeOn && cat.cold ? '' : ' disabled') + '>' +
+    '<span class="hint">' + (cat.cold ? 'A measured core temperature replaces the modelled one at the bay and narrows the range.' : 'No probe step for bakery in this demo.') + '</span></div>';
+}
+
+function syncControls(M) {
+  const b = M.b, ov = M.ov, cat = M.tw.cat;
+  const val = (k) => (ov && ov[k] !== undefined ? ov[k] : b[k]);
+  [['chillerT', '°C'], ['failH', 'h'], ['bayMin', 'min'], ['outdoorC', '°C']].forEach((p) => {
+    const o = $('#o-' + p[0]), hnt = $('#h-' + p[0]);
+    if (!o) return;
+    o.textContent = fmtVal(val(p[0]), p[1]);
+    hnt.textContent = 'As logged: ' + fmtVal(b[p[0]], p[1]) + (ov && ov[p[0]] !== undefined && ov[p[0]] !== b[p[0]] ? ' · what-if' : '');
+  });
+  const probe = val('probe'), on = probe !== null && probe !== undefined;
+  const po = $('#o-probe');
+  if (po) po.textContent = on ? fmtVal(probe, '°C') : 'not taken' + (b.probe != null && cat.cold ? ' · what-if' : '');
+}
+
+function onCtl(e) {
+  const k = e.target.dataset.ctl;
+  if (!k) return;
+  const id = state.twinId, b = batchOf(id);
+  const ov = state.overrides[id] || (state.overrides[id] = {});
+  if (k === 'probe-on') {
+    ov.probe = e.target.checked ? +$('#c-probe').value : null;
+    $('#c-probe').disabled = !e.target.checked;
+  } else if (k === 'probe') {
+    ov.probe = +e.target.value;
+  } else {
+    ov[k] = +e.target.value;
+  }
+  const same = Object.keys(ov).every((key) => ov[key] === b[key]);
+  if (same) delete state.overrides[id];
+  updateTwin(false);
+}
+
+// ------------------------------------------------------------------ chart
+function drawChart(M) {
+  const wrap = $('#tw-chart');
+  const W = Math.max(300, Math.floor(wrap.clientWidth || wrap.parentNode.clientWidth || 640));
+  const built = buildChart(M.tw, W);
+  wrap.innerHTML = built.svg + '<div class="tip" hidden></div>';
+  bindChart(wrap, built.model);
+}
+
+function buildChart(tw, W) {
+  const cat = tw.cat, legs = tw.legs, S = tw.series, n = S.t.length;
+  const H = W < 520 ? 250 : 300;
+  const mg = { l: 34, r: 40, t: 20, b: 46 };
+  const iw = W - mg.l - mg.r, ih = H - mg.t - mg.b;
+  const totalH = legs.reduce((s, l) => s + l.hours, 0);
+  const wts = legs.map((l) => Math.max(0.9, Math.pow(l.hours, 0.4)));
+  const wsum = wts.reduce((a, c) => a + c, 0);
+  let acc = 0, tcur = -totalH;
+  const lay = legs.map((l, i) => {
+    const x0 = mg.l + acc / wsum * iw; acc += wts[i];
+    const o = { leg: l, x0: x0, x1: mg.l + acc / wsum * iw, t0: tcur, t1: tcur + l.hours };
+    tcur += l.hours;
+    return o;
+  });
+  const legIndexAt = (t) => { for (let i = 0; i < lay.length; i++) if (t <= lay[i].t1 + 1e-9) return i; return lay.length - 1; };
+  const xOf = (t) => {
+    const L = lay[legIndexAt(t)];
+    const f = L.t1 > L.t0 ? Math.max(0, Math.min(1, (t - L.t0) / (L.t1 - L.t0))) : 1;
+    return L.x0 + f * (L.x1 - L.x0);
+  };
+
+  // The y-axis follows the core temperature. A short spike in the air (the receiving bay) is clipped
+  // at the top and labelled, so it does not squash the part of the chart that matters.
+  let lo = Infinity, hi = -Infinity, airMax = -Infinity, iAir = 0;
+  [S.coreHi, S.coreLo].forEach((arr) => { for (let i = 0; i < arr.length; i++) { if (arr[i] < lo) lo = arr[i]; if (arr[i] > hi) hi = arr[i]; } });
+  for (let i = 0; i < n; i++) { if (S.air[i] < lo) lo = S.air[i]; if (S.air[i] > airMax) { airMax = S.air[i]; iAir = i; } }
+  lo = Math.min(lo, cat.Tref); hi = Math.max(hi, cat.Tref);
+  if (cat.qaT != null) hi = Math.max(hi, cat.qaT);
+  lo -= 1; hi += 2.5;
+  const span = hi - lo, step = span > 28 ? 10 : span > 12 ? 5 : 2;
+  const y0 = Math.floor(lo / step) * step, y1 = Math.ceil(hi / step) * step;
+  const yOf = (v) => mg.t + (1 - (v - y0) / (y1 - y0)) * ih;
+  const yAir = (v) => yOf(Math.min(v, y1));
+
+  const px = S.t.map(xOf);
+  const line = (arr, f) => { let d = ''; for (let i = 0; i < n; i++) d += (i ? 'L' : 'M') + px[i].toFixed(1) + ',' + (f || yOf)(arr[i]).toFixed(1); return d; };
+  let band = '';
+  for (let i = 0; i < n; i++) band += (i ? 'L' : 'M') + px[i].toFixed(1) + ',' + yOf(S.coreHi[i]).toFixed(1);
+  for (let i = n - 1; i >= 0; i--) band += 'L' + px[i].toFixed(1) + ',' + yOf(S.coreLo[i]).toFixed(1);
+  band += 'Z';
+
+  let g = '';
+  for (let v = y0; v <= y1 + 1e-9; v += step) {
+    g += '<line class="ch-grid" x1="' + mg.l + '" x2="' + (mg.l + iw) + '" y1="' + yOf(v).toFixed(1) + '" y2="' + yOf(v).toFixed(1) + '"/>' +
+      '<text class="ch-text" x="' + (mg.l - 6) + '" y="' + (yOf(v) + 4).toFixed(1) + '" text-anchor="end">' + v + '</text>';
+  }
+  g += '<text class="ch-text" x="' + (mg.l - 6) + '" y="' + (mg.t - 9) + '" text-anchor="end">°C</text>';
+
+  const by = H - mg.b + 16;
+  lay.forEach((L, i) => {
+    const w = L.x1 - L.x0, cx = (L.x0 + L.x1) / 2;
+    if (i % 2 === 0) g += '<rect class="ch-leg" x="' + L.x0.toFixed(1) + '" y="' + mg.t + '" width="' + w.toFixed(1) + '" height="' + ih + '"/>';
+    if (i > 0) g += '<line class="ch-sep" x1="' + L.x0.toFixed(1) + '" x2="' + L.x0.toFixed(1) + '" y1="' + mg.t + '" y2="' + (mg.t + ih + 6) + '"/>';
+    const names = L.leg.id === 'store' ? [cat.storeLabel] : LEG_NAMES[L.leg.id];
+    const name = names.filter((s) => s && s.length * 6.2 + 6 <= w)[0];
+    const dur = hrs(L.leg.hours);
+    if (name) {
+      g += '<text class="ch-text-2" x="' + cx.toFixed(1) + '" y="' + by + '" text-anchor="middle">' + esc(name) + '</text>';
+      g += '<text class="ch-text" x="' + cx.toFixed(1) + '" y="' + (by + 13) + '" text-anchor="middle">' + esc(dur) + '</text>';
+    } else if (dur.length * 6.2 + 4 <= w) {
+      g += '<text class="ch-text" x="' + cx.toFixed(1) + '" y="' + (by + 13) + '" text-anchor="middle">' + esc(dur) + '</text>';
+    }
+  });
+
+  g += '<path class="ch-band" d="' + band + '"/>';
+  g += '<line class="ch-ref" x1="' + mg.l + '" x2="' + (mg.l + iw) + '" y1="' + yOf(cat.Tref).toFixed(1) + '" y2="' + yOf(cat.Tref).toFixed(1) + '"/>';
+  if (cat.qaT != null) g += '<line class="ch-qa" x1="' + mg.l + '" x2="' + (mg.l + iw) + '" y1="' + yOf(cat.qaT).toFixed(1) + '" y2="' + yOf(cat.qaT).toFixed(1) + '"/>';
+  g += '<path class="ch-air" d="' + line(S.air, yAir) + '"/><path class="ch-core" d="' + line(S.core) + '"/>';
+  if (airMax > y1 + 0.01) {
+    const right = px[iAir] < mg.l + iw / 2;
+    g += '<text class="ch-text-2" x="' + (px[iAir] + (right ? 8 : -8)).toFixed(1) + '" y="' + (mg.t + 12) + '" text-anchor="' + (right ? 'start' : 'end') + '">Air up to ' + fmt(airMax) + ' °C ▲</text>';
+  }
+
+  S.obsAt.forEach((idx) => {
+    const cx = px[idx], cy = yOf(S.core[idx]);
+    const right = cx + 96 <= mg.l + iw + 30;
+    g += '<circle class="ch-probe" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="5"/>' +
+      '<text class="ch-text-2" x="' + (right ? cx + 9 : cx - 9).toFixed(1) + '" y="' + (cy - 9).toFixed(1) + '" text-anchor="' + (right ? 'start' : 'end') + '">Probe ' + fmt(S.core[idx]) + ' °C</text>';
+  });
+
+  let ya = yAir(S.air[n - 1]), yc = yOf(S.core[n - 1]);
+  if (Math.abs(ya - yc) < 13) {
+    const mid = (ya + yc) / 2;
+    if (ya <= yc) { ya = mid - 7; yc = mid + 7; } else { ya = mid + 7; yc = mid - 7; }
+  }
+  g += '<text class="ch-text-2" x="' + (mg.l + iw + 6) + '" y="' + (ya + 4).toFixed(1) + '">Air</text><text class="ch-text-2" x="' + (mg.l + iw + 6) + '" y="' + (yc + 4).toFixed(1) + '">Core</text>';
+
+  g += '<line class="ch-cross" id="ch-x" y1="' + mg.t + '" y2="' + (mg.t + ih) + '" visibility="hidden"/><circle class="ch-dot-air" id="ch-d1" r="4" visibility="hidden"/><circle class="ch-dot" id="ch-d2" r="4" visibility="hidden"/>';
+  g += '<rect class="ch-hit" x="' + mg.l + '" y="' + mg.t + '" width="' + iw + '" height="' + ih + '" fill="transparent"/>';
+
+  const peak = tw.peakCore;
+  const svg = '<svg class="chart" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" tabindex="0" aria-label="Core temperature along the journey. Peak core temperature ' +
+    fmt(peak) + ' degrees. Real shelf life ' + fmt(tw.low) + ' to ' + fmt(tw.high) + ' days. Use the left and right arrow keys to read values.">' + g + '</svg>';
+
+  const model = {
+    W: W, mg: mg, px: px, ih: ih,
+    yOf: yOf, yAir: yAir, S: S, lay: lay, legIndexAt: legIndexAt, labels: legs.map((l) => l.label)
+  };
+  return { svg: svg, model: model };
+}
+
+function bindChart(wrap, m) {
+  const svg = $('svg.chart', wrap), hit = $('.ch-hit', svg), cross = $('#ch-x', svg), d1 = $('#ch-d1', svg), d2 = $('#ch-d2', svg), tip = $('.tip', wrap);
+  let cur = Math.max(0, m.px.length - 1);
+  const nearest = (clientX) => {
+    const x = clientX - svg.getBoundingClientRect().left;
+    let a = 0, z = m.px.length - 1;
+    while (a < z) { const mid = (a + z) >> 1; if (m.px[mid] < x) a = mid + 1; else z = mid; }
+    if (a > 0 && Math.abs(m.px[a - 1] - x) <= Math.abs(m.px[a] - x)) a--;
+    return a;
+  };
+  function show(i) {
+    cur = i;
+    const S = m.S, x = m.px[i], t = S.t[i];
+    cross.setAttribute('x1', x); cross.setAttribute('x2', x); cross.setAttribute('visibility', 'visible');
+    d1.setAttribute('cx', x); d1.setAttribute('cy', m.yAir(S.air[i])); d1.setAttribute('visibility', 'visible');
+    d2.setAttribute('cx', x); d2.setAttribute('cy', m.yOf(S.core[i])); d2.setAttribute('visibility', 'visible');
+    const when = Math.abs(t) < 0.005 ? 'now' : hrs(-t) + ' before now';
+    tip.innerHTML = '<div class="tip-h">' + esc(m.labels[m.legIndexAt(t)]) + ' · ' + when + '</div>' +
+      '<div><i style="border-color:var(--heat)"></i>Air <b>' + fmt(S.air[i]) + ' °C</b></div>' +
+      '<div><i style="border-color:var(--accent)"></i>Core <b>' + fmt(S.core[i]) + ' °C</b> (' + fmt(S.coreLo[i]) + '–' + fmt(S.coreHi[i]) + ')</div>' +
+      '<div>Shelf life lost so far <b>' + fmt(S.lost[i]) + ' d</b></div>';
+    tip.hidden = false;
+    const tw = tip.offsetWidth;
+    let left = x + 12;
+    if (left + tw > m.W - 4) left = x - tw - 12;
+    tip.style.left = Math.max(4, left) + 'px';
+    tip.style.top = (m.mg.t + 8) + 'px';
+  }
+  function hide() {
+    [cross, d1, d2].forEach((e) => e.setAttribute('visibility', 'hidden'));
+    tip.hidden = true;
+  }
+  hit.addEventListener('pointermove', (e) => show(nearest(e.clientX)));
+  hit.addEventListener('pointerdown', (e) => show(nearest(e.clientX)));
+  hit.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hide(); });
+  svg.addEventListener('keydown', (e) => {
+    const stepN = Math.max(1, Math.round(m.px.length / 40));
+    if (e.key === 'ArrowLeft') { e.preventDefault(); show(Math.max(0, cur - stepN)); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); show(Math.min(m.px.length - 1, cur + stepN)); }
+    else if (e.key === 'Escape') hide();
+  });
+  svg.addEventListener('blur', hide);
+}
+
+// ----------------------------------------------- bridge, math, audit, table
+function bridgeHTML(tw) {
+  const printed = Math.max(0, tw.printedRemaining);
+  let h = '<h3>Where the shelf life went</h3>';
+  if (tw.printedRemaining <= 0) {
+    return h + '<p class="lead">The printed date has passed by ' + fmt(-tw.printedRemaining) + ' days. There is nothing to model: the batch leaves the shelf.</p>';
+  }
+  const scale = Math.max(printed, 1), rows = [];
+  let run = printed;
+  rows.push({ label: 'Printed date says', sub: 'by the label', from: 0, to: printed, cls: 'br-printed', val: fmt(printed), dim: false });
+  let rest = 0;
+  tw.lostByLeg.forEach((l) => {
+    if (l.days > 0.04) {
+      const to = run; run -= l.days;
+      rows.push({ label: l.label, sub: hrs(l.hours) + ' at ' + fmt(l.T) + ' °C', from: Math.max(0, run), to: to, cls: 'br-loss', val: '−' + fmt(l.days), dim: false });
+    } else rest += l.days;
+  });
+  const last = tw.legs[tw.legs.length - 1];
+  if (tw.futureLoss > 0.04) {
+    const to = run; run -= tw.futureLoss;
+    rows.push({ label: 'From here on', sub: 'at ' + fmt(last.T) + ' °C in the ' + (last.label || '').toLowerCase(), from: Math.max(0, run), to: to, cls: 'br-loss', val: '−' + fmt(tw.futureLoss), dim: false });
+  }
+  if (rest > 0.04) rows.push({ label: 'Other legs', sub: 'small losses', from: Math.max(0, run - rest), to: run, cls: 'br-loss', val: '−' + fmt(rest), dim: false });
+  rows.push({ label: 'Real shelf life', sub: 'central estimate', from: 0, to: tw.mid, cls: 'br-real', val: fmt(tw.mid), dim: false, strong: true });
+  h += '<div class="bridge">' + rows.map((r) =>
+    '<div class="br-row"><div class="br-label">' + (r.strong ? '<b>' + esc(r.label) + '</b>' : esc(r.label)) + '<small>' + esc(r.sub) + '</small></div>' +
+    '<div class="br-track"><div class="br-bar ' + r.cls + '" style="left:' + (r.from / scale * 100).toFixed(2) + '%;width:' + (Math.max(0, r.to - r.from) / scale * 100).toFixed(2) + '%"></div></div>' +
+    '<div class="br-val">' + r.val + '</div></div>').join('') + '</div>';
+  h += '<p class="hint">Days. Each orange bar is shelf life used up faster than the clock by heat in that leg. Range across the corner cases: ' + fmt(tw.low) + '–' + fmt(tw.high) + ' d.</p>';
+  return h;
+}
+
+function mathHTML(tw) {
+  const c = tw.cat;
+  const rows = tw.legs.map((l) => '<tr><td>' + esc(l.label) + '</td><td class="r">' + esc(hrs(l.hours)) + '</td><td class="r">' + fmt(l.T) + '</td><td class="r">± ' + fmt(l.sigma) + '</td><td>' + SRC[l.src] + '</td></tr>').join('');
+  return '<pre class="math" tabindex="0">' +
+    'core temperature   d(Tcore)/dt = (Tair − Tcore) / τ        τ = ' + c.tau[0] + '–' + c.tau[1] + ' h (pack and pallet size)\n' +
+    'ageing speed       r(T) = Q10 ^ ((T − ' + c.Tref + ') / 10)   never below 1,  Q10 = ' + c.q10[0] + '–' + c.q10[1] + '\n' +
+    'life used          Δage = r × Δt     (r = 1 means ageing at the printed pace)\n' +
+    'range              τ fast or slow × Q10 low or high × air temperature ± σ   = ' + tw.cornerCount + ' cases\n' +
+    'act on             the low end of the range, never past the printed date</pre>' +
+    '<p>These settings are placeholders chosen to behave sensibly for ' + esc(c.label.toLowerCase()) + '. They are to be calibrated on pilot data and each producer’s own shelf-life studies. No accuracy claim is made.</p>' +
+    '<table class="mini"><thead><tr><th>Leg</th><th class="r">Time</th><th class="r">Air °C</th><th class="r">± °C</th><th>Source</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function tableHTML(tw) {
+  return '<table class="mini"><thead><tr><th>Leg</th><th class="r">Time</th><th class="r">Air °C</th><th class="r">Life lost (d)</th></tr></thead><tbody>' +
+    tw.lostByLeg.map((l) => '<tr><td>' + esc(l.label) + '</td><td class="r">' + esc(hrs(l.hours)) + '</td><td class="r">' + fmt(l.T) + '</td><td class="r">' + fmt(l.days) + '</td></tr>').join('') +
+    '<tr><td>From here on</td><td class="r">—</td><td class="r">' + fmt(tw.legs[tw.legs.length - 1].T) + '</td><td class="r">' + fmt(tw.futureLoss) + '</td></tr></tbody></table>' +
+    '<p class="hint">Peak modelled core temperature: ' + fmt(tw.peakCore) + ' °C. Central case; the chart band shows the spread.</p>';
+}
+
+function auditText(b, sku, tw, dec) {
+  const cat = tw.cat, L = [];
+  L.push('Batch ' + b.code + ' · ' + sku.name + ' · ' + storeOf(b.store).name);
+  L.push('Printed life ' + sku.lifeDays + ' d · produced ' + hrs(b.producedAgoH) + ' ago · in store ' + hrs(b.deliveredAgoH));
+  L.push('Calendar: ' + E.CALENDARS[state.calendar].label);
+  L.push('');
+  L.push('INPUTS   leg · time · air °C ± σ · source');
+  tw.legs.forEach((l) => L.push('  ' + l.label.padEnd(20) + hrs(l.hours).padStart(8) + '  ' + fmt(l.T).padStart(5) + ' ± ' + fmt(l.sigma) + '  ' + SRC[l.src] + (l.obs != null ? '  (probe ' + fmt(l.obs) + ' °C)' : '')));
+  L.push('');
+  L.push('MODEL    illustrative, to be calibrated');
+  L.push('  tau ' + cat.tau[0] + '–' + cat.tau[1] + ' h · Q10 ' + cat.q10[0] + '–' + cat.q10[1] + ' · Tref ' + cat.Tref + ' °C · ' + tw.cornerCount + ' corner cases');
+  L.push('');
+  L.push('RESULT');
+  L.push('  real shelf life ' + fmt(tw.low) + '–' + fmt(tw.high) + ' d (central ' + fmt(tw.mid) + ') · printed ' + fmt(tw.printedRemaining) + ' d · confidence ' + tw.confidence);
+  L.push('  peak core ' + fmt(tw.peakCore) + ' °C' + (cat.qaT != null ? ' · QA rule ' + cat.qaT + ' °C for ' + cat.qaMin + ' min: ' + (tw.breach ? 'TRIGGERED' : 'not triggered') : ''));
+  L.push('');
+  L.push('DECISION ' + dec.action.toUpperCase() + (dec.units ? ' · ' + dec.units + ' units' : ''));
+  dec.reasons.forEach((r) => L.push('  - ' + r));
+  L.push('');
+  L.push('RULES    capped at the printed date · stop at expiry · uncertain goes to QA hold · only confirmed outcomes count');
+  return L.join('\n');
+}
+
+/* ShelfTwin prototype UI, part C: capture chat, impact ledger, real-vs-simulated, boot. */
+
+T.en.nothing = (s) => 'Good morning. Nothing needs doing at ' + s + ' today.';
+T.ar.nothing = (s) => 'صباح الخير. لا توجد مهام اليوم في ' + s + '.';
+T.hi.nothing = (s) => 'सुप्रभात। आज ' + s + ' में कोई काम नहीं है।';
+
+// ----------------------------------------------------------------- capture
+const WAVE = [4, 8, 12, 7, 14, 10, 5, 9, 15, 11, 6, 13, 8, 4, 10, 14, 9, 5, 12, 7, 3];
+const pad2 = (n) => String(n).padStart(2, '0');
+
+function labelSvg() {
+  const sku = SKUS['yog-500'], b = batchOf('b01');
+  const d = new Date(DEMO + 16 * 86400000);
+  const bb = pad2(d.getUTCDate()) + ' ' + MONTHS.en[d.getUTCMonth()].toUpperCase() + ' ' + d.getUTCFullYear();
+  let x = 16, bars = '';
+  String(sku.gtin).split('').forEach((c) => {
+    const n = +c;
+    [1 + (n % 3), 1 + ((n + 1) % 2), 1 + ((n + 2) % 3)].forEach((w, j) => {
+      if (j % 2 === 0) bars += '<rect x="' + x + '" y="94" width="' + w + '" height="26" fill="#1D2A33"/>';
+      x += w + 1;
+    });
+  });
+  return '<svg viewBox="0 0 260 144" style="direction:ltr" role="img" aria-label="Illustration of a yogurt pack label with batch code and best before date">' +
+    '<rect x="1" y="1" width="258" height="142" rx="10" fill="#F7F3E8" stroke="#C9C1AE"/>' +
+    '<text x="16" y="24" font-size="10" font-weight="700" letter-spacing="1.5" fill="#1D2A33" font-family="sans-serif">DEMO DAIRY</text>' +
+    '<text x="16" y="46" font-size="15" font-weight="700" fill="#1D2A33" font-family="sans-serif">' + esc(sku.name) + '</text>' +
+    '<text x="16" y="64" font-size="9.5" fill="#44565F" font-family="sans-serif">BEST BEFORE</text><text x="92" y="64" font-size="11" font-weight="700" fill="#1D2A33" font-family="monospace">' + bb + '</text>' +
+    '<text x="16" y="80" font-size="9.5" fill="#44565F" font-family="sans-serif">BATCH</text><text x="92" y="80" font-size="11" font-weight="700" fill="#1D2A33" font-family="monospace">' + esc(b.code) + '</text>' +
+    bars + '<text x="16" y="134" font-size="8" fill="#44565F" font-family="monospace">' + sku.gtin + '</text>' +
+    '<text x="244" y="134" font-size="8" fill="#44565F" font-family="sans-serif" text-anchor="end">KEEP CHILLED 0–4 °C</text></svg>';
+}
+
+const msgIn = (inner) => '<div class="msg in"><div class="bubble">' + inner + '</div></div>';
+const msgOut = (inner) => '<div class="msg out"><div class="bubble">' + inner + '</div></div>';
+
+function planBubble(lang, r, dec, i, n, opts) {
+  const t = T[lang], tw = r.twin, id = r.batch.id;
+  const a = dec.action;
+  let h = '<div class="task" data-row="' + id + '" tabindex="-1"><div class="tn">' + esc(t.taskNo(i + 1, n)) + '</div>';
+  if (opts.replanned) h += '<div class="sub"><b>' + esc(t.newPlan) + '</b></div>';
+  if (opts.none) h += '<div class="sub">' + esc(t.none) + '</div>';
+  h += '<div>' + taskText(lang, r, dec) + '</div>';
+  if (a !== 'remove' && a !== 'ok' && tw.printedRemaining > 0) h += '<div class="sub">' + t.real(fmt(tw.low), fmt(tw.high), fmt(tw.printedRemaining)) + '</div>';
+  if (opts.buttons) {
+    h += '<div class="qr"><button type="button" class="qbtn" data-act="done" data-id="' + id + '" data-key="chat-done-' + id + '">' + esc(t.done) + '</button>' +
+      (CANT[a] ? '<button type="button" class="qbtn" data-act="cant" data-id="' + id + '" data-key="chat-cant-' + id + '">' + esc(t.cant) + '</button>' : '') + '</div>';
+  }
+  return h + '</div>';
+}
+
+function chatTask(r, i, n, lang) {
+  const t = T[lang], tk = r.task || { trail: [] }, id = r.batch.id;
+  let h = '';
+  (tk.trail || []).forEach((tr, k) => {
+    h += msgIn(planBubble(lang, r, tr.decision, i, n, { replanned: k > 0 }));
+    h += msgOut(esc(t.cant));
+    h += msgIn(esc(t.why));
+    h += msgOut(esc(t.reasons[tr.reason]));
+  });
+  const replanned = (tk.trail || []).length > 0;
+  if (r.done) {
+    h += msgIn(planBubble(lang, r, r.decision, i, n, { replanned: replanned }));
+    h += msgOut(esc(t.doneOut));
+    h += msgIn(esc(t.thanks));
+  } else if (tk.asking) {
+    h += msgIn(planBubble(lang, r, r.decision, i, n, { replanned: replanned }));
+    h += msgOut(esc(t.cant));
+    h += msgIn('<div>' + esc(t.why) + '</div><div class="qr" style="flex-direction:column;align-items:stretch">' +
+      D.REASONS.map((x) => '<button type="button" class="qbtn" data-act="reason" data-id="' + id + '" data-reason="' + x.id + '" data-key="chat-r-' + x.id + '-' + id + '">' + esc(t.reasons[x.id]) + '</button>').join('') +
+      '<button type="button" class="qbtn" data-act="cant-cancel" data-id="' + id + '" data-key="chat-cancel-' + id + '" style="border-color:var(--line-2);color:var(--ink-2)">↩</button></div>');
+  } else {
+    h += msgIn(planBubble(lang, r, r.decision, i, n, { replanned: replanned, buttons: true, none: replanned && r.decision.action === 'hold' }));
+  }
+  return h;
+}
+
+// The chat walks through three tasks: one safety task if there is one, then saving actions, so the
+// Done / Can't do flow is always on show. The choice is fixed per store and calendar so a re-plan
+// does not swap tasks under the reader.
+function chatRows(rows) {
+  const key = state.store + '|' + state.calendar;
+  if (!state.chatIds[key]) {
+    const act = rows.filter((r) => r.decision.action !== 'ok');
+    const safety = act.filter((r) => r.decision.action === 'remove' || r.decision.action === 'hold');
+    const saving = act.filter((r) => CANT[r.decision.action]);
+    const pick = [];
+    if (safety[0]) pick.push(safety[0]);
+    saving.forEach((r) => { if (pick.length < 3) pick.push(r); });
+    act.forEach((r) => { if (pick.length < 3 && pick.indexOf(r) < 0) pick.push(r); });
+    state.chatIds[key] = pick.map((r) => r.batch.id);
+  }
+  return state.chatIds[key].map((id) => rows.filter((r) => r.batch.id === id)[0]).filter(Boolean);
+}
+
+function renderChat() {
+  const lang = state.lang, t = T[lang];
+  $('#cap-lang').innerHTML = Object.keys(T).map((k) =>
+    '<button type="button" data-act="lang" data-lang="' + k + '" aria-pressed="' + (k === lang) + '" lang="' + k + '">' + T[k].label + '</button>').join('');
+  const sku = SKUS['yog-500'], b = batchOf('b01');
+  const rows = chatRows(plan(state.store));
+  const storeName = sname(lang, state.store);
+  const wave = '<svg class="wave" viewBox="0 0 84 20" aria-hidden="true">' + WAVE.map((v, i) => '<rect x="' + (i * 4) + '" y="' + (10 - v / 2) + '" width="2" height="' + v + '" rx="1" fill="currentColor"/>').join('') + '</svg>';
+  let h = '<div class="phone-head"><span class="av">' + ic('i-mic') + '</span><div><b>' + esc(t.assistant) + '</b><span>' + esc(t.sub) + '</span></div></div><div class="chat">';
+  h += '<div class="when">' + esc(t.atReceiving) + '</div>';
+  h += msgOut('<div class="photo">' + labelSvg() + '</div><div class="voice">' + ic('i-play') + wave + '<span class="mono">0:07</span></div><div class="sub">' + esc(t.photoCap) + '</div><div class="sub">' + esc(t.heardLbl) + ': ' + esc(t.heard) + '</div>');
+  h += msgIn('<div>' + esc(t.readIntro) + '</div><dl class="rc"><dt>' + esc(t.f.product) + '</dt><dd>' + esc(pname(lang, sku)) + '</dd><dt>' + esc(t.f.batch) + '</dt><dd>' + bdi(b.code) +
+    '</dd><dt>' + esc(t.f.bb) + '</dt><dd><bdi>' + esc(dateText(lang, 16)) + '</bdi></dd><dt>' + esc(t.f.qty) + '</dt><dd><bdi>' + b.qty + '</bdi></dd></dl>' +
+    '<div class="qr"><button type="button" class="qbtn" disabled>' + esc(t.fix) + '</button><button type="button" class="qbtn on" disabled>' + esc(t.yes) + '</button></div>');
+  h += msgOut(esc(t.yes));
+  h += msgIn(t.saved(b.qty, pname(lang, sku), b.code));
+  h += '<div class="when">' + esc(t.nextMorning) + '</div>';
+  if (rows.length) {
+    h += msgIn(esc(t.hello(rows.length, storeName)));
+    rows.forEach((r, i) => { h += chatTask(r, i, rows.length, lang); });
+  } else {
+    h += msgIn(esc(t.nothing(storeName)));
+  }
+  h += '</div><div class="phone-foot">' + ic('i-mic') + ' ' + esc(t.sub) + '</div>';
+  const ph = $('#phone');
+  ph.setAttribute('dir', t.dir); ph.setAttribute('lang', t.lang);
+  ph.innerHTML = h;
+}
+
+function renderCapture() {
+  const el = $('#view-capture');
+  if (!el.dataset.ready) {
+    el.dataset.ready = '1';
+    el.innerHTML =
+      '<p class="lead">Staff do not type into a system. They snap the label or say it, in their own language, then answer one tap on the morning message. The chat below runs on the same morning list: tap Done or Can’t do and the list and ledger follow.</p>' +
+      '<div class="bar"><div class="field"><span>Staff language</span><div class="seg seg-3" id="cap-lang" role="group" aria-label="Staff language"></div></div></div>' +
+      '<div class="cap-grid"><div><div class="phone" id="phone"></div><p class="hint" style="margin-top:10px;text-align:center">Mock-up. No messaging service is connected. Arabic and Hindi are draft translations that need native-speaker review.</p></div>' +
+      '<div class="col"><section class="card"><h3>How capture works</h3><ol class="steps">' +
+      '<li><div><b>Snap it or say it <span class="badge b-design">Designed</span></b><p>A photo of the label, or a ten-second voice note, in Arabic, Hindi or English. No typing and no new app to learn.</p></div></li>' +
+      '<li><div><b>The pack reads itself <span class="badge b-sim">Demo step below</span></b><p>The barcode gives the product (GS1 standard). AI reads the batch code and date. Anything unclear is flagged and one tap confirms it.</p></div></li>' +
+      '<li><div><b>One message each morning <span class="badge b-sim">Mock-up</span></b><p>The list arrives in the person’s own language. One tap: Done or Can’t do.</p></div></li>' +
+      '<li><div><b>Can’t do re-plans <span class="badge b-real">Runs in this page</span></b><p>A reason is one tap. The engine rules that action out and offers the next best one. If nothing safe is left, a person decides.</p></div></li>' +
+      '</ol></section><section class="card" id="live-ai"></section></div></div>';
+    initLiveAI();
+  }
+  renderChat();
+}
+
+// ------------------------------------------------------- live label reading
+let sampleNS = null;
+const live = { checked: false, available: false, images: false, accept: '' };
+const EXAMPLE = { product: 'Laban 1 L', batch: 'LB2611-7', best_before: '2026-11-27', quantity: 12, unsure: [] };
+
+function getSample() {
+  try {
+    if (!window.claude || typeof window.claude.use !== 'function') return Promise.resolve(null);
+    return Promise.race([window.claude.use('sample'), new Promise((res) => setTimeout(() => res(null), 6000))]).catch(() => null);
+  } catch (e) { return Promise.resolve(null); }
+}
+
+function matchSku(product) {
+  if (!product) return null;
+  const p = String(product).toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  let best = null, bestScore = 0;
+  Object.keys(SKUS).forEach((id) => {
+    const toks = SKUS[id].name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    const hit = toks.filter((tk) => p.indexOf(tk) >= 0).length;
+    const score = hit / toks.length;
+    if (score > bestScore) { bestScore = score; best = SKUS[id]; }
+  });
+  return bestScore >= 0.6 ? best : null;
+}
+
+function validReading(raw) {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const unsure = [];
+  const flag = (k) => { if (unsure.indexOf(k) < 0) unsure.push(k); };
+  const out = { product: null, batch: null, best_before: null, quantity: null, notes: [] };
+  if (typeof o.product === 'string' && o.product.trim() && o.product.length <= 80) out.product = o.product.trim(); else flag('product');
+  if (typeof o.batch === 'string' && /^[A-Za-z0-9][A-Za-z0-9\-/.]{2,19}$/.test(o.batch.trim())) out.batch = o.batch.trim(); else flag('batch');
+  if (typeof o.best_before === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.best_before)) {
+    const t = Date.parse(o.best_before + 'T00:00:00Z');
+    if (!isNaN(t) && t >= Date.UTC(2026, 0, 1) && t <= Date.UTC(2028, 11, 31)) {
+      out.best_before = o.best_before;
+      if (t < DEMO) out.notes.push('That date is already past. It would go straight to removal.');
+    } else flag('best_before');
+  } else flag('best_before');
+  if (typeof o.quantity === 'number' && Number.isInteger(o.quantity) && o.quantity >= 1 && o.quantity <= 5000) out.quantity = o.quantity; else flag('quantity');
+  if (Array.isArray(o.unsure)) o.unsure.forEach((k) => { if (['product', 'batch', 'best_before', 'quantity'].indexOf(k) >= 0) flag(k); });
+  out.unsure = unsure;
+  return out;
+}
+
+function readingHTML(v, source) {
+  const U = (k) => v.unsure.indexOf(k) >= 0;
+  const fld = (k, label, val) => '<div class="fld' + (U(k) ? ' unsure' : '') + '"><span>' + esc(label) + '</span><b>' + (val == null || U(k) ? 'Not clear' : esc(val)) + '</b></div>';
+  const sku = matchSku(v.product);
+  let dateShown = v.best_before;
+  if (dateShown) { const d = new Date(Date.parse(dateShown + 'T00:00:00Z')); dateShown = d.getUTCDate() + ' ' + MONTHS.en[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); }
+  let h = '<div class="fields">' + fld('product', 'Product', v.product) + fld('batch', 'Batch', v.batch) + fld('best_before', 'Best before', dateShown) + fld('quantity', 'Quantity', v.quantity) + '</div>';
+  if (sku) h += '<p class="note">Matched to the demo catalogue: <b>' + esc(sku.name) + '</b> (GTIN <span class="mono">' + esc(sku.gtin) + '</span>). The barcode would confirm this.</p>';
+  else if (v.product && !U('product')) h += '<p class="note">Not in the demo catalogue. A real deployment would look the barcode up in the GS1 registry.</p>';
+  if (v.unsure.length) h += '<p class="note warn">A person confirms: ' + esc(v.unsure.map((k) => ({ product: 'product', batch: 'batch', best_before: 'best before', quantity: 'quantity' }[k])).join(', ')) + '. The page does not guess.</p>';
+  v.notes.forEach((n) => { h += '<p class="note warn">' + esc(n) + '</p>'; });
+  h += '<p class="hint">Source: ' + esc(source) + '. Page checks: batch format, valid date, quantity 1 to 5,000.</p>';
+  return h;
+}
+
+function liveHTML() {
+  let status;
+  if (!live.checked) status = 'Checking whether live reading is available in this viewer…';
+  else if (live.available) status = 'Live reading is available. Claude reads your text' + (live.images ? ' or photo' : '') + ' and the page checks the answer.';
+  else status = 'Live reading is not available in this view. The saved example shows what comes back.';
+  return '<h3>Try the reading step <span class="badge b-sim">Demo step</span></h3>' +
+    '<p class="small muted">Type what is on a label' + (live.images ? ' or add a photo of one' : '') + '. It is read into fields, and anything unclear is flagged for a person instead of guessed.</p>' +
+    '<label class="field"><span>Label text</span><textarea id="ai-text" rows="3" spellcheck="false">Laban 1L  batch LB2611-7  BB 27/11/26  12 packs</textarea></label>' +
+    (live.images ? '<label class="field"><span>Photo of a label (optional)</span><input type="file" id="ai-file" accept="' + esc(live.accept) + '"></label>' : '') +
+    '<div class="row-actions"><button type="button" class="btn btn-primary btn-sm" data-act="ai-run" id="ai-run"' + (live.available ? '' : ' disabled') + '>Read it</button>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-act="ai-sample">Show the saved example</button></div>' +
+    '<p class="hint" id="ai-status">' + esc(status) + '</p>' +
+    '<div class="live-out" id="ai-out" aria-live="polite">' + readingHTML(validReading(EXAMPLE), 'saved example, not a live result') + '</div>';
+}
+
+async function initLiveAI() {
+  const box = $('#live-ai');
+  box.innerHTML = liveHTML();
+  sampleNS = await getSample();
+  live.checked = true; live.available = !!sampleNS;
+  if (sampleNS && typeof sampleNS.limits === 'function') {
+    try { const caps = await sampleNS.limits(); live.images = !!(caps && caps.images); live.accept = live.images ? caps.images.mediaTypes.join(',') : ''; } catch (e) { live.images = false; }
+  }
+  const text = $('#ai-text') ? $('#ai-text').value : null;
+  box.innerHTML = liveHTML();
+  if (text !== null && $('#ai-text')) $('#ai-text').value = text;
+}
+
+function readError(e) {
+  const c = e && e.code;
+  if (c === 'not_granted' || c === 'sampling_disabled' || c === 'not_declared' || c === 'capability_disabled' || c === 'capability_removed') return 'Live reading is not available for this viewer. The saved example shows what comes back.';
+  if (c === 'rate_limited') return 'Too many requests just now. Try again in a little while.';
+  if (c === 'image_rejected' || c === 'images_unavailable') return 'That photo could not be used. Try another one, or type the label text.';
+  if (c === 'invalid_json' || c === 'refused' || c === 'empty_completion') return 'That could not be read into fields. Try typing the label text more plainly.';
+  if (c === 'cancelled') return '';
+  return 'Something went wrong while reading. Nothing was changed. Try again.';
+}
+
+async function runReading() {
+  const out = $('#ai-out'), btn = $('#ai-run'), text = ($('#ai-text').value || '').trim();
+  const f = $('#ai-file'), file = f && f.files && f.files[0] ? f.files[0] : null;
+  if (!sampleNS) return;
+  if (!text && !file) { out.innerHTML = '<p class="note warn">Type the label text or add a photo first.</p>'; return; }
+  btn.disabled = true;
+  out.innerHTML = '<p class="note">Reading…</p>';
+  try {
+    const prompt = 'You read food pack labels for a store. From the label text below' + (file ? ' and the attached photo of a label' : '') + ', extract the fields. ' +
+      'Never guess: if a field is not clearly there, use null and list its name in "unsure". Dates may be written day/month/year. Today is 2026-11-16.\n' +
+      'Reply with only one JSON object: {"product": string or null, "batch": string or null, "best_before": "YYYY-MM-DD" or null, "quantity": integer or null, "unsure": array of field names}.\n' +
+      'Label text:\n"""\n' + text.slice(0, 2000) + '\n"""';
+    const opts = { modelTier: 'quick', cache: false };
+    if (file) opts.images = [file];
+    const res = await sampleNS.json(prompt, opts);
+    out.innerHTML = readingHTML(validReading(res), 'read live by Claude just now');
+  } catch (e) {
+    const m = readError(e);
+    out.innerHTML = m ? '<p class="note warn">' + esc(m) + '</p>' : '';
+  } finally {
+    btn.disabled = !live.available;
+  }
+}
+
+// ------------------------------------------------------------------ impact
+function ledgerRows() {
+  const rows = [];
+  state.log.slice().reverse().forEach((e) => {
+    const sku = SKUS[e.skuId];
+    const row = { daysAgo: 0, iso: isoDay(0), store: e.store, sku: sku, code: e.code, action: e.action, depth: e.depth, status: e.status, units: e.units, saved: e.saved, kg: 0, cost: 0, revenue: 0, sim: false };
+    if (e.status === 'confirmed') { const v = E.valueOf(e.action, e.saved, sku, e.depth); row.kg = v.kg; row.cost = v.cost; row.revenue = v.revenue; }
+    rows.push(row);
+  });
+  plan(state.store).forEach((r) => {
+    const a = r.decision.action;
+    if (r.done || (a !== 'move' && a !== 'markdown' && a !== 'donate')) return;
+    rows.push({ daysAgo: 0, iso: isoDay(0), store: r.batch.store, sku: r.sku, code: r.batch.code, action: a, depth: (r.decision.detail && r.decision.detail.depth) || 0, status: 'recommended', units: r.decision.units, saved: null, kg: 0, cost: 0, revenue: 0, sim: false });
+  });
+  D.HISTORY.slice().sort((x, y) => x.daysAgo - y.daysAgo).forEach((h) => {
+    const sku = SKUS[h.sku], v = E.valueOf(h.action, h.saved, sku, h.depth);
+    rows.push({ daysAgo: h.daysAgo, iso: isoDay(h.daysAgo), store: h.store, sku: sku, code: h.code, action: h.action, depth: h.depth || 0, status: 'confirmed', units: h.units, saved: h.saved, kg: v.kg, cost: v.cost, revenue: v.revenue, sim: true });
+  });
+  return rows;
+}
+
+function csvOf(rows) {
+  const q = (s) => '"' + String(s).replace(/"/g, '""') + '"';
+  const lines = ['date,store,product,batch,action,status,units_acted,units_confirmed_saved,kg_counted,aed_at_cost,aed_at_retail'];
+  rows.forEach((r) => {
+    const c = E.countsTowardSavings(r);
+    lines.push([r.iso, q(storeOf(r.store).name), q(r.sku.name), q(r.code), r.action, q(r.status + (r.sim ? ' (simulated history)' : '')), r.units, r.saved == null ? '' : r.saved,
+      c ? r.kg.toFixed(2) : '', c ? r.cost.toFixed(2) : '', c ? r.revenue.toFixed(2) : ''].join(','));
+  });
+  return lines.join('\n');
+}
+
+function statusHTML(r) {
+  const c = E.countsTowardSavings(r);
+  if (r.status === 'confirmed' && c) return '<span class="st st-ok">' + ic('i-check') + 'Confirmed, counted</span>';
+  if (r.status === 'confirmed') return '<span class="st st-off">Logged, never counted</span>';
+  if (r.status === 'done') return '<span class="st st-wait">Done, awaiting confirmation</span>';
+  return '<span class="st st-off">Recommended, not counted</span>';
+}
+
+function renderImpact() {
+  const el = $('#view-impact');
+  const rows = ledgerRows();
+  const t = E.totals(rows), P = E.PARAMS;
+  const awaiting = rows.filter((r) => r.status === 'done').length;
+  const recommended = rows.filter((r) => r.status === 'recommended').length;
+  const neverCounted = rows.filter((r) => r.status === 'confirmed' && !E.countsTowardSavings(r)).length;
+  const tile = (k, v, unit, n) => '<div class="tile"><span class="k">' + k + '</span><div class="v">' + v + (unit ? '<small>' + unit + '</small>' : '') + '</div><span class="n">' + n + '</span></div>';
+
+  let h = '';
+  if (state.banner) h += '<p class="note" role="status">' + esc(state.banner) + '</p>';
+  h += '<p class="lead">Savings are counted only when an outcome is confirmed as sold or donated. A recommendation is never a saving. The last seven days are simulated history; today’s rows come from the taps you make on the morning list.</p>';
+  h += '<div class="tiles">' +
+    tile('Food kept in use', num(t.kg, 1), 'kg', 'Confirmed outcomes only: sold or donated.') +
+    tile('Meals equivalent', num(t.meals), '', 'kg ÷ ' + P.mealKg + ' kg per meal. Illustrative.') +
+    tile('Stock cost kept in use', 'AED ' + num(t.cost), '', 'At cost price, not retail. Confirmed only.') +
+    tile('Revenue recovered', 'AED ' + num(t.revenue), '', 'At retail price after markdowns. Donations recover none.') +
+    tile('CO₂e avoided', num(t.co2e), 'kg', 'kg × ' + P.co2ePerKg + ' kg CO₂e per kg of food. A placeholder factor, not a sourced one.') + '</div>';
+  h += '<p class="small muted">Counted: <b>' + t.counted + '</b> confirmed actions. Not counted: <b>' + awaiting + '</b> done and awaiting confirmation, <b>' + recommended + '</b> recommended only, <b>' + neverCounted + '</b> holds, removals or reorders (these never count).</p>';
+  h += '<div class="row-actions"><button type="button" class="btn btn-primary" data-act="close-day"' + (awaiting ? '' : ' disabled') + '>Close the day and confirm ' + awaiting + (awaiting === 1 ? ' action' : ' actions') + '</button>' +
+    '<button type="button" class="btn btn-ghost" data-act="tab" data-tab="today">Back to the morning list</button></div>';
+
+  h += '<h2 class="sec-h">Ledger <span class="count">' + rows.length + ' rows</span></h2>';
+  h += '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>When</th><th>Product, store, batch</th><th>Action</th><th>Status</th><th class="num">Acted</th><th class="num">Saved</th><th class="num">kg</th><th class="num">AED cost</th><th class="num">AED retail</th></tr></thead><tbody>' +
+    rows.map((r) => {
+      const c = E.countsTowardSavings(r), m = ACT[r.action], acts = r.action === 'move' || r.action === 'markdown' || r.action === 'donate';
+      return '<tr><td>' + (r.daysAgo === 0 ? 'Today' : r.daysAgo + ' d ago') + (r.sim ? '<small>simulated</small>' : '') + '</td>' +
+        '<td>' + esc(r.sku.name) + '<small>' + esc(storeOf(r.store).short) + ' · <span class="mono">' + esc(r.code) + '</span></small></td>' +
+        '<td><span class="chip ' + m.chip + '">' + ic(m.icon) + m.label + (r.depth ? ' ' + Math.round(r.depth * 100) + '%' : '') + '</span></td><td>' + statusHTML(r) + '</td>' +
+        '<td class="num">' + r.units + '</td><td class="num">' + (r.saved == null || !acts ? '—' : r.saved) + '</td>' +
+        '<td class="num">' + (c ? num(r.kg, 1) : '—') + '</td><td class="num">' + (c ? num(r.cost) : '—') + '</td><td class="num">' + (c ? num(r.revenue) : '—') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  h += '<p class="hint">Acted: units the action covered. Saved: units confirmed sold or donated. kg, AED cost and AED retail count confirmed units only; cost is at cost price, retail is at the price actually charged. Rows marked simulated are history made up for the demo.</p>';
+
+  h += '<div class="two"><section class="card"><h3>Counting rules</h3><ol class="rules">' +
+    '<li><b>A recommendation is never a saving.</b> Only an outcome confirmed as sold or donated is counted.</li>' +
+    '<li><b>Holds, removals and reorders never count.</b> Neither does an action that was recommended but not done.</li>' +
+    '<li><b>Money says what it is.</b> Cost price or retail price, never a bare “AED saved”. Donations recover no revenue.</li>' +
+    '<li><b>One method per number.</b> Meals = kg ÷ ' + P.mealKg + '. CO₂e = kg × ' + P.co2ePerKg + ' kg CO₂e per kg. Both are illustrative and shown with their method.</li>' +
+    '<li><b>Built to support</b> food-waste measurement and ESG reporting (goal tag: SDG 12.3). These figures are simulated and not audited.</li></ol></section>' +
+    '<details class="fold"><summary>Export the ledger as CSV</summary><div class="fold-in"><p>Plain CSV, one row per action, with the same counting rules.</p>' +
+    '<div class="row-actions"><button type="button" class="btn btn-ghost btn-sm" data-act="copy-csv" id="copy-csv">' + ic('i-copy') + 'Copy CSV</button></div>' +
+    '<pre class="audit csv" id="csv" tabindex="0">' + esc(csvOf(rows)) + '</pre></div></details></div>';
+  el.innerHTML = h;
+}
+
+async function copyCsv() {
+  const pre = $('#csv'), btn = $('#copy-csv');
+  try {
+    await navigator.clipboard.writeText(pre.textContent);
+    btn.innerHTML = ic('i-check') + 'Copied'; say('CSV copied');
+  } catch (e) {
+    const r = document.createRange(); r.selectNodeContents(pre);
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    say('The CSV is selected. Copy it with your keyboard.');
+  }
+}
+
+// ----------------------------------------------------------- real vs simulated
+function renderReal() {
+  const el = $('#view-real');
+  const B = {
+    real: ['b-real', 'Real code'], sim: ['b-sim', 'Simulated data'], illus: ['b-illus', 'Illustrative numbers'],
+    design: ['b-design', 'Designed, not built'], mock: ['b-sim', 'Mock-up'], demo: ['b-sim', 'Demo step'], none: ['b-plan', 'Not measured yet']
+  };
+  const rt = (title, text, badges) => '<div class="rt-row"><b>' + title + '</b><p>' + text + '</p><div class="badges">' +
+    badges.map((k) => '<span class="badge ' + B[k][0] + '">' + B[k][1] + '</span>').join('') + '</div></div>';
+  el.innerHTML =
+    '<p class="lead">This is a working prototype, not a product. The engine is real code that runs in your browser. Everything it is fed is made up. Here is exactly which is which.</p>' +
+    '<div class="rt">' +
+    rt('Shelf-life engine', 'Heat moves from the air into the pack, and warmer product uses up shelf life faster. Each batch runs through 8 corner cases of the uncertain inputs to give a range, and the twin acts on the low end. It runs live on this page, and the same code passes 30 automated checks, for example: real life never exceeds the printed date, and more heat never gives more life.', ['real', 'illus']) +
+    rt('Model settings', 'Heat-transfer times, the Q10 ageing factor and the QA limits are placeholders chosen to behave sensibly. They are not taken from any producer’s shelf-life study. They are to be calibrated on pilot data.', ['illus']) +
+    rt('Decision rules', 'Fixed order: remove at the printed date, hold on a QA breach or a wide range, then move, mark down, donate or reorder. Can’t do re-plans. The rules are real code; the thresholds are illustrative.', ['real', 'illus']) +
+    rt('Stores, products, batches, temperatures, sales', 'Made up. The retailer, stores and distributor are fictional, and no real company is named or involved. Barcode numbers are well-formed demo numbers, not real products. Last week’s history is simulated.', ['sim']) +
+    rt('Gulf demand calendar', 'Four multipliers: normal week, Ramadan evenings, Eid week, National Day weekend. Illustrative. The product would learn them from sales data.', ['illus']) +
+    rt('Capture chat', 'A scripted mock-up in English, Arabic and Hindi. No messaging service is connected. The Arabic and Hindi are draft translations that need review by native speakers.', ['mock', 'design']) +
+    rt('Reading a label with AI', 'Optional. Where your viewer allows it, the page sends typed label text or a photo to Claude and checks the answer against simple rules. Otherwise a saved example is shown. It demonstrates the step; it is not a measured reader.', ['demo']) +
+    rt('Impact ledger', 'The counting rules are real code: only confirmed outcomes count, holds, removals and reorders never do, and money says whether it is cost or retail. The numbers are simulated, and Close the day fakes the evening confirmation.', ['real', 'sim']) +
+    rt('Accuracy of the shelf-life range', 'Not measured. This page makes no accuracy claim. A pilot would report the error in days, on batches held out of calibration, before any such claim.', ['none']) +
+    rt('Learning loop, POS and ERP links, real delivery channel', 'Designed. Not built.', ['design']) +
+    '</div>' +
+    '<div class="two"><section class="card"><h3>What a pilot would measure</h3><ul class="cols-ul">' +
+    '<li><b>Error in days.</b> The model’s low and high end against measured end of life, on batches held out of calibration.</li>' +
+    '<li><b>Safety.</b> Batches sold past their real end of life must be zero. Holds raised, and holds cleared by QA.</li>' +
+    '<li><b>Confirmed kg and AED</b> against comparable stores that do not use it, with the ledger rules on this page.</li>' +
+    '<li><b>Time to act.</b> How long from the morning message to Done.</li></ul></section>' +
+    '<section class="card"><h3>How we word things</h3><ul class="cols-ul">' +
+    '<li><b>Uses shelf life better</b>, never “extends shelf life”. The printed date is a ceiling.</li>' +
+    '<li><b>Built to support</b> ESG reporting, never “compliant with” or “certified by”.</li>' +
+    '<li><b>Every number is attributed.</b> Simulated, illustrative, or computed from those. This page uses no outside statistics.</li>' +
+    '<li><b>No brand is implied.</b> Stores and distributor are fictional and no company has agreed to anything.</li></ul></section></div>';
+}
+
+// -------------------------------------------------------------- tabs & boot
+const TABS = ['today', 'twin', 'capture', 'impact', 'real'];
+const RENDER = { today: renderToday, twin: renderTwin, capture: renderCapture, impact: renderImpact, real: renderReal };
+
+function setTab(name, fromHash) {
+  if (TABS.indexOf(name) < 0) name = 'today';
+  state.tab = name;
+  TABS.forEach((k) => {
+    const on = k === name;
+    const tab = $('#tab-' + k);
+    tab.setAttribute('aria-selected', on ? 'true' : 'false');
+    tab.tabIndex = on ? 0 : -1;
+    $('#view-' + k).hidden = !on;
+  });
+  RENDER[name]();
+  if (!fromHash && location.hash !== '#' + name) { try { location.hash = name; } catch (e) { /* ignore */ } }
+  const top = $('.top').offsetHeight;
+  if (window.scrollY > top) window.scrollTo(0, top);
+}
+
+function refresh(hint) {
+  const a = document.activeElement;
+  const key = a && a.getAttribute ? a.getAttribute('data-key') : null;
+  const row = a && a.closest ? a.closest('[data-row]') : null;
+  const rowId = row ? row.getAttribute('data-row') : null;
+  RENDER[state.tab]();
+  const view = $('#view-' + state.tab);
+  let target = key ? $('[data-key="' + key + '"]', view) : null;
+  if (!target && rowId) target = $('[data-row="' + rowId + '"]', view);
+  if (!target && hint) target = $(hint, view);
+  if (target) target.focus({ preventScroll: true });
+}
+
+function handleAct(el) {
+  const act = el.dataset.act, id = el.dataset.id;
+  switch (act) {
+    case 'tab': setTab(el.dataset.tab); break;
+    case 'open-twin': state.twinId = id; setTab('twin'); break;
+    case 'scenario': state.twinId = id; updateTwin(true); break;
+    case 'tw-reset': delete state.overrides[state.twinId]; updateTwin(true); break;
+    case 'cal': state.calendar = el.dataset.cal; refresh(); break;
+    case 'reset': resetDemo(); refresh(); say('Demo reset.'); break;
+    case 'done': doneTask(id); state.banner = null; refresh(); break;
+    case 'undo': undoTask(id); refresh(); break;
+    case 'cant': askCant(id); refresh(); break;
+    case 'cant-cancel': cancelCant(id); refresh(); break;
+    case 'reason': cantReason(id, el.dataset.reason); refresh(); break;
+    case 'close-day': closeDay(); if (state.tab === 'impact') refresh(); else setTab('impact'); break;
+    case 'lang': state.lang = el.dataset.lang; renderChat(); break;
+    case 'copy-csv': copyCsv(); break;
+    case 'ai-run': runReading(); break;
+    case 'ai-sample': { const o = $('#ai-out'); if (o) o.innerHTML = readingHTML(validReading(EXAMPLE), 'saved example, not a live result'); break; }
+    default: break;
+  }
+}
+
+function boot() {
+  document.addEventListener('click', (e) => {
+    const tabBtn = e.target.closest('.tab');
+    if (tabBtn) { setTab(tabBtn.dataset.tab); return; }
+    const a = e.target.closest('[data-act]');
+    if (a && !a.disabled) handleAct(a);
+  });
+  document.addEventListener('input', (e) => { if (e.target && e.target.dataset && e.target.dataset.ctl) onCtl(e); });
+  document.addEventListener('change', (e) => {
+    if (e.target.id === 'sel-store') { state.store = e.target.value; refresh(); }
+    else if (e.target.id === 'tw-pick') { state.twinId = e.target.value; updateTwin(true); }
+  });
+  document.addEventListener('toggle', (e) => { if (e.target && e.target.id === 'try') state.tryOpen = e.target.open; }, true);
+  $('.tabs-in').addEventListener('keydown', (e) => {
+    const i = TABS.indexOf(state.tab);
+    let j = -1;
+    if (e.key === 'ArrowRight') j = (i + 1) % TABS.length;
+    else if (e.key === 'ArrowLeft') j = (i + TABS.length - 1) % TABS.length;
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = TABS.length - 1;
+    if (j >= 0) { e.preventDefault(); setTab(TABS[j]); $('#tab-' + TABS[j]).focus(); }
+  });
+  let ticking = false;
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { ticking = false; syncLiveBar(); });
+  }, { passive: true });
+  let rt = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(rt);
+    rt = setTimeout(() => { if (state.tab === 'twin' && $('#tw-chart')) drawChart(twinModel()); }, 120);
+  });
+  window.addEventListener('hashchange', () => {
+    const h = location.hash.slice(1);
+    if (TABS.indexOf(h) >= 0 && h !== state.tab) setTab(h, true);
+  });
+  const h0 = location.hash.slice(1);
+  setTab(TABS.indexOf(h0) >= 0 ? h0 : 'today', true);
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+// Exposed for the local test script only.
+window.__shelftwin = { state: state, plan: plan, T: T, validReading: validReading, matchSku: matchSku, ledgerRows: ledgerRows, csvOf: csvOf };
+
+})();
+
+</script>
+
+</body></html>
